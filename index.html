@@ -123,7 +123,7 @@ body{padding-bottom:24px;}
 </head>
 <body>
 <header>
-  <h1>Proteomics-to-Neo v1.0</h1>
+  <h1>Proteomics-to-Neo v1.1</h1>
   <p>Proteomics &amp; phosphoproteomics explorer · differential, GSEA, cross-omics regulation</p>
   <p class="author">By ILYH</p>
 </header>
@@ -137,7 +137,6 @@ body{padding-bottom:24px;}
     <div class="tab" data-panel="hm">Heatmap</div>
     <div class="tab" data-panel="gsea">GSEA</div>
     <div class="tab" data-panel="cross">Cross-omics</div>
-    <div class="tab" data-panel="reg">Phospho regulation</div>
   </div>
 
   <!-- ===== 1. UPLOAD ===== -->
@@ -213,7 +212,7 @@ body{padding-bottom:24px;}
       <div class="src" id="diffSrc"></div>
       <div class="row" style="margin-bottom:8px;">
         <label class="label" style="margin:0;">Omics:</label>
-        <select id="diffOmics"><option value="proteomics">Proteomics</option><option value="phospho">Phospho</option></select>
+        <select id="diffOmics"><option value="proteomics">Proteomics</option><option value="phospho">Phospho</option><option value="phospho-corrected">Phospho (corrected by Proteomics)</option></select>
         <label class="label" style="margin:0;margin-left:10px;">Comparisons:</label>
         <div class="cb-wrap" id="diffCompWrap" style="min-width:240px;"></div>
       </div>
@@ -223,7 +222,11 @@ body{padding-bottom:24px;}
           <select id="thPtype"><option value="adj.P.Val">p.adj</option><option value="P.Value">p-val</option></select>
         </label>
         <label>≤ <input type="number" id="thP" value="0.05" step="0.01" min="0" max="1"></label>
+        <label id="diffPairedRow" style="display:none;font-size:.82rem;color:var(--ink);display:none;align-items:center;gap:6px;cursor:pointer;">
+          <input type="checkbox" id="diffPairedOnly"> Hide unpaired sites
+        </label>
       </div>
+      <div id="diffCorrWarn" class="warn-box" style="display:none;"></div>
       <div id="diffPColWarn" class="warn-box" style="display:none;"></div>
       <div class="stat-grid" id="diffStats"></div>
       <div class="grid-2" style="margin-bottom:14px;">
@@ -389,39 +392,6 @@ body{padding-bottom:24px;}
       <div class="stat-grid" id="crossStats" style="margin-top:10px;"></div>
     </div>
   </div>
-
-  <!-- ===== 8. PHOSPHO REGULATION ===== -->
-  <div id="panel-reg" class="panel">
-    <div class="card">
-      <h2>Phospho regulation</h2>
-      <div class="src" id="regSrc"></div>
-      <p class="note">Two modes:<br>
-        <b>Compute correction</b> — for each phospho site, <code>regulation = phospho.Log2FC − protein.Log2FC</code> at the same comparison. Use this when phospho is <b>raw</b> (uncorrected). Sites without matching protein Log2FC fall back to phospho.Log2FC and are flagged.<br>
-        <b>Already corrected</b> — phospho.Log2FC is treated <i>as</i> regulation. Use this when the upstream pipeline already did proteome correction. Proteomics file is <b>not required</b>.</p>
-      <div class="row" style="margin-bottom:8px;">
-        <label class="label" style="margin:0;">Mode:</label>
-        <select id="regMode">
-          <option value="correct">Compute correction (phospho − protein)</option>
-          <option value="asis">Phospho already corrected</option>
-        </select>
-        <label class="label" style="margin:0;margin-left:6px;">Comparison:</label>
-        <select id="regComp"></select>
-        <label class="label" style="margin:0;">|reg| ≥</label>
-        <input type="number" id="regCut" value="0.5" step="0.1" min="0" style="width:80px;">
-
-      </div>
-      <div id="regWarn" class="warn-box" style="display:none;"></div>
-      <div class="stat-grid" id="regStats"></div>
-      <div class="chart-box" style="margin-bottom:14px;max-width:620px;">
-        <h3>Regulation volcano (regulation vs −log10 phospho P)</h3>
-        <canvas id="regVolcano" height="280"></canvas>
-      </div>
-      <div class="chart-box">
-        <h3>Top regulated sites <button class="btn-sm" id="regExport" style="float:right;padding:5px 11px;">Export CSV</button></h3>
-        <div class="table-wrap"><table id="regTable"><thead></thead><tbody></tbody></table></div>
-      </div>
-    </div>
-  </div>
 </main>
 
 <div id="hmTip"></div>
@@ -523,7 +493,6 @@ function onTabEnter(p){
   else if(p==='hm')renderHmPanel();
   else if(p==='gsea')renderGsea();
   else if(p==='cross')renderCross();
-  else if(p==='reg')renderReg();
 }
 
 /* ===========================================================
@@ -736,12 +705,14 @@ function updateAllSrc(){
   const omQC=$('qcOmics')?.value||'proteomics';
   if($('qcSrc'))$('qcSrc').innerHTML=srcLine([STATE[omQC].matrix&&{label:'Matrix',name:STATE[omQC].matrix.name}]);
   const omD=$('diffOmics')?.value||'proteomics';
-  if($('diffSrc'))$('diffSrc').innerHTML=srcLine([STATE[omD].dep&&{label:'DEP',name:STATE[omD].dep.name}]);
+  if($('diffSrc')){
+    if(omD==='phospho-corrected')$('diffSrc').innerHTML=srcLine([STATE.phospho.dep&&{label:'Phospho DEP',name:STATE.phospho.dep.name},STATE.proteomics.dep&&{label:'Proteomics DEP',name:STATE.proteomics.dep.name}]);
+    else $('diffSrc').innerHTML=srcLine([STATE[omD].dep&&{label:'DEP',name:STATE[omD].dep.name}]);
+  }
   const omH=$('hmOmics')?.value||'proteomics';
   if($('hmSrc'))$('hmSrc').innerHTML=srcLine([STATE[omH].matrix&&{label:'Matrix',name:STATE[omH].matrix.name},STATE[omH].dep&&{label:'DEP (for top ranking)',name:STATE[omH].dep.name}]);
   if($('gseaSrc')){const all=[...Object.values(STATE.proteomics.gsea),...Object.values(STATE.phospho.gsea)];$('gseaSrc').innerHTML=all.length?(`GSEA files (${all.length}): `+all.map(f=>f.name).join(' · ')):'no GSEA files loaded';}
   if($('crossSrc'))$('crossSrc').innerHTML=srcLine([STATE.proteomics.dep&&{label:'Proteomics DEP',name:STATE.proteomics.dep.name},STATE.phospho.dep&&{label:'Phospho DEP',name:STATE.phospho.dep.name}]);
-  if($('regSrc')){const regMode=$('regMode')?.value||'correct';const parts=[STATE.phospho.dep&&{label:'Phospho DEP',name:STATE.phospho.dep.name}];if(regMode==='correct')parts.push(STATE.proteomics.dep&&{label:'Proteomics DEP',name:STATE.proteomics.dep.name});$('regSrc').innerHTML=srcLine(parts);}
 }
 function removeFile(id){
   const f=STATE.files.find(x=>x.id===id);if(!f)return;
@@ -967,7 +938,6 @@ function loadDemo(){
   drawFileList();
   refreshComparisonControls();
   refreshGseaRunControls&&refreshGseaRunControls();
-  alert('Demo data loaded:\n• proteomics + phospho matrices (9 samples × 3 groups: Ctrl / TreatA / TreatB)\n• DEPs for TreatA vs Ctrl and TreatB vs Ctrl\n• 18-pathway GSEA results (proteomics)\n• small GMT for "Run GSEA from DEP"\n\nGo to Setup → QC → Differential to start exploring.');
 }
 $('loadDemoBtn')&&$('loadDemoBtn').addEventListener('click',loadDemo);
 
@@ -1028,7 +998,8 @@ function getComparisons(omics){
 }
 function refreshComparisonControls(){
   // Diff comparisons
-  const omics=$('diffOmics')?.value||'proteomics';
+  const omicsRaw=$('diffOmics')?.value||'proteomics';
+  const omics=omicsRaw==='phospho-corrected'?'phospho':omicsRaw;
   const cmps=getComparisons(omics);
   const wrap=$('diffCompWrap');if(wrap){wrap.innerHTML=cmps.map((c,i)=>`<label class="cb-item"><input type="checkbox" value="${esc(c)}" ${i<2?'checked':''}> ${esc(c)}</label>`).join('')||'<span style="color:var(--muted);font-size:.8rem;">no DEP loaded</span>';}
   // Heatmap comparison
@@ -1049,9 +1020,9 @@ function refreshComparisonControls(){
   const allIds=[];Object.values(STATE.proteomics.gsea).concat(Object.values(STATE.phospho.gsea)).forEach(f=>f.rows.forEach(r=>allIds.push(r.ID||'')));
   const cols=uniq(allIds.map(id=>(id.split('_')[0]||'').toUpperCase())).filter(Boolean).sort();
   const gc=$('gseaCollection');if(gc)gc.innerHTML=`<option value="ALL">All</option>`+cols.map(c=>`<option>${c}</option>`).join('');
-  // cross / reg
+  // cross
   const phCmps=getComparisons('phospho');
-  ['crossComp','regComp'].forEach(id=>{const s=$(id);if(s)s.innerHTML=phCmps.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');});
+  ['crossComp'].forEach(id=>{const s=$(id);if(s)s.innerHTML=phCmps.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');});
 }
 $('diffOmics').addEventListener('change',refreshComparisonControls);
 
@@ -1062,7 +1033,7 @@ $('qcOmics').addEventListener('change',renderQC);
 $('qcPCAscale').addEventListener('change',renderQC);
 {const e=$('qcCVcut');if(e)e.addEventListener('input',renderQC);}
 ['pcaFlipX','pcaFlipY','pcaSwapXY'].forEach(id=>{const e=$(id);if(e)e.addEventListener('change',renderQC);});
-['diffOmics','hmOmics','regMode'].forEach(id=>{const e=$(id);if(e)e.addEventListener('change',updateAllSrc);});
+['diffOmics','hmOmics'].forEach(id=>{const e=$(id);if(e)e.addEventListener('change',updateAllSrc);});
 function renderQC(){
   updateAllSrc();
   const omics=$('qcOmics').value;
@@ -1334,6 +1305,7 @@ function drawPCA(canvasId,legendId,omics,samples,vals){
  * ===========================================================*/
 // auto-refresh on any parameter change
 ['diffOmics','thPtype'].forEach(id=>{const e=$(id);if(e)e.addEventListener('change',renderDiff);});
+{const e=$('diffPairedOnly');if(e)e.addEventListener('change',renderDiff);}
 ['thLogFC','thP'].forEach(id=>{const e=$(id);if(e)e.addEventListener('input',renderDiff);});
 $('diffCompWrap').addEventListener('change',e=>{if(e.target.matches('input[type="checkbox"]'))renderDiff();});
 $('diffSearch').addEventListener('input',renderDiffTable);
@@ -1377,8 +1349,17 @@ function volcanoThresholdPlugin(lfcCut,pCut,pcol){
 }
 function renderDiff(){
   const omics=$('diffOmics').value;
-  const f=STATE[omics].dep;
+  const isCorrected=omics==='phospho-corrected';
+  const srcOmics=isCorrected?'phospho':omics;
+  const f=STATE[srcOmics].dep;
   const cmps=getSelectedComparisons('diffCompWrap');
+  // warn if corrected mode but no proteomics DEP
+  const cwarn=$('diffCorrWarn');
+  if(cwarn){
+    if(isCorrected&&!STATE.proteomics.dep){cwarn.style.display='block';cwarn.innerHTML='No <b>Proteomics DEP</b> loaded — correction cannot be applied. Phospho data shown uncorrected. Load a proteomics DEP file to enable correction.';}
+    else if(isCorrected){cwarn.style.display='block';cwarn.innerHTML='<b>Note:</b> Log2FC is corrected (phospho − protein), but <b>p-values are not recalculated</b> — they reflect the original phospho DEP analysis and do not account for the correction. Significance thresholds here are approximate.';}
+    else{cwarn.style.display='none';cwarn.innerHTML='';}
+  }
   if(!f||!cmps.length){
     $('diffStats').innerHTML='<p style="color:var(--muted);font-size:.85rem;">Select comparisons / load DEP file.</p>';
     if(STATE.charts.diffVolcano){STATE.charts.diffVolcano.destroy();STATE.charts.diffVolcano=null;}
@@ -1387,17 +1368,32 @@ function renderDiff(){
   }
   const lfc=parseFloat($('thLogFC').value),pcut=parseFloat($('thP').value),pcol=$('thPtype').value;
   const data={};let allRows=[];
+  // pre-build protein lookup per comparison for correction
+  const proLookup=isCorrected?buildDepLookup('proteomics'):null;
   cmps.forEach(c=>{
+    const prMap=proLookup?.[c]||{};
     const rows=f.rows.filter(r=>r.Comparison===c).map(r=>{
-      const lf=safeNum(r.logFC),pv=safeNum(r[pcol]);
-      const isPhospho=omics==='phospho';
+      let lf=safeNum(r.logFC);
+      const pv=safeNum(r[pcol]);
+      const isPhospho=srcOmics==='phospho';
       const id=isPhospho?(r['PTM.CollapseKey']||r['Gene']||''):pickGene(r['PG.Genes']);
       const gene=pickGene(r['PG.Genes']);
+      let paired=null;
+      if(isCorrected){
+        const prLfc=prMap[gene]?.lfc;
+        if(Number.isFinite(prLfc)){lf=lf-prLfc;paired=true;}else{paired=false;}
+      }
       const sig=Math.abs(lf)>=lfc&&pv<=pcut;
-      return {...r,_id:id,_gene:gene,_lfc:lf,_p:pv,_sig:sig,_dir:lf>0?'up':'down',_comp:c};
+      return {...r,_id:id,_gene:gene,_lfc:lf,_p:pv,_sig:sig,_dir:lf>0?'up':'down',_comp:c,_paired:paired};
     });
     data[c]=rows;allRows=allRows.concat(rows);
   });
+  // show/hide paired filter row
+  const pairedRow=$('diffPairedRow');
+  if(pairedRow)pairedRow.style.display=isCorrected?'block':'none';
+  // apply paired filter if checked
+  const hidePairedFalse=isCorrected&&$('diffPairedOnly')?.checked;
+  if(hidePairedFalse){Object.keys(data).forEach(c=>{data[c]=data[c].filter(r=>r._paired!==false);});allRows=allRows.filter(r=>r._paired!==false);}
   // p-value column sanity check (#7): warn user when chosen p-value column is missing/empty in the file
   const pwarn=$('diffPColWarn');
   if(pwarn){
@@ -1438,22 +1434,23 @@ function renderDiff(){
       {label:c+' ns',           data:ns,    backgroundColor:COL_NS+'66',pointRadius:1.6,pointHoverRadius:4}
     ];
   }).flat();
-  // axis bounds with 10% padding around the most extreme points
+  // axis bounds: X symmetric, Y with 10% padding
   const allPts=datasets.flatMap(d=>d.data);
   let xMin=0,xMax=0,yMin=0,yMax=0;
   if(allPts.length){
     const xs=allPts.map(p=>p.x), ys=allPts.map(p=>p.y);
-    xMin=Math.min(...xs); xMax=Math.max(...xs);
+    const xAbsMax=Math.max(Math.abs(Math.min(...xs)),Math.abs(Math.max(...xs)));
+    const xPad=xAbsMax*0.10||0.5;
+    xMin=-(xAbsMax+xPad); xMax=xAbsMax+xPad;
     yMin=Math.min(...ys); yMax=Math.max(...ys);
-    const xr=(xMax-xMin)||1, yr=(yMax-yMin)||1;
-    xMin-=xr*0.10; xMax+=xr*0.10;
+    const yr=(yMax-yMin)||1;
     yMin=Math.min(yMin,0)-yr*0.02; yMax+=yr*0.10;
   }
   STATE.charts.diffVolcano=new Chart(ctx,{type:'scatter',data:{datasets},options:{
     responsive:true,plugins:{legend:{position:'bottom',labels:{boxWidth:10}},
-    tooltip:{callbacks:{label:c=>`${c.raw.gene}  (Log2FC:${fmt(c.raw.x,3)}, -log10 P:${fmt(c.raw.y,3)})`}}},
+    tooltip:{callbacks:{label:c=>`${c.raw.gene}  (${isCorrected?'Corrected ':''  }Log2FC:${fmt(c.raw.x,3)}, -log10 P:${fmt(c.raw.y,3)})`}}},  
     scales:{
-      x:{title:{display:true,text:'Log2 fold change'},min:xMin,max:xMax},
+      x:{title:{display:true,text:isCorrected?'Corrected Log2FC (phospho − protein)':'Log2 fold change'},min:xMin,max:xMax},
       y:{title:{display:true,text:'−log10 '+({'adj.P.Val':'p.adj','P.Value':'p-val'}[pcol]||pcol)},min:yMin,max:yMax}
     }
   },plugins:[volcanoThresholdPlugin(lfc,pcut,pcol)]});
@@ -1472,7 +1469,7 @@ function renderDiffTable(){
   const tbl=$('diffTable');const q=($('diffSearch').value||'').trim().toLowerCase();
   const rows=lastDiffRows.filter(r=>!q||(r._gene||'').toLowerCase().includes(q)||(r._id||'').toLowerCase().includes(q));
   const omics=$('diffOmics').value;
-  const cols=omics==='phospho'?['_comp','_gene','PTM.CollapseKey','PTM.FlankingRegion','_lfc','_p','adj.P.Val','P.Value']:['_comp','_gene','PG.ProteinGroups','_lfc','_p','adj.P.Val','P.Value'];
+  const cols=(omics==='phospho'||omics==='phospho-corrected')?['_comp','_gene','PTM.CollapseKey','PTM.FlankingRegion','_lfc','_p','adj.P.Val','P.Value']:['_comp','_gene','PG.ProteinGroups','_lfc','_p','adj.P.Val','P.Value'];
   const labelOf=c=>({'adj.P.Val':'p.adj','P.Value':'p-val'}[c]||c.replace(/^_/,''));
   const hdr=cols.map(c=>`<th>${labelOf(c)}</th>`).join('');
   tbl.querySelector('thead').innerHTML=`<tr>${hdr}</tr>`;
@@ -2085,84 +2082,6 @@ function renderCross(){
   [['Sites paired',pts.length],['Dropped (no matching protein)',droppedNoProtein],['Pearson r',fmt(r,4)],['Concordant (same dir)',pts.filter(p=>p.x*p.y>0).length],['Discordant',pts.filter(p=>p.x*p.y<0).length]]
     .forEach(([l,v])=>{const d=document.createElement('div');d.className='stat-card';d.innerHTML=`<div class="val">${esc(v)}</div><div class="lbl">${esc(l)}</div>`;stats.appendChild(d);});
 }
-
-/* ===========================================================
- * PHOSPHO REGULATION
- * ===========================================================*/
-['regMode','regComp'].forEach(id=>{const e=$(id);if(e)e.addEventListener('change',renderReg);});
-['regCut'].forEach(id=>{const e=$(id);if(e)e.addEventListener('input',renderReg);});
-let lastRegRows=[];
-$('regExport').addEventListener('click',()=>{if(lastRegRows.length)downloadCSV(lastRegRows,'phospho_regulation.csv');});
-function renderReg(){
-  const comp=$('regComp').value;
-  const mode=$('regMode').value;
-  const phMap=buildDepLookup('phospho')?.[comp];
-  const prMap=mode==='correct'?(buildDepLookup('proteomics')?.[comp]):null;
-  const warn=$('regWarn');warn.style.display='none';warn.innerHTML='';
-  if(!phMap){$('regStats').innerHTML='<p style="color:var(--muted);font-size:.85rem;">Need phospho DEP for this comparison.</p>';return;}
-  if(mode==='correct'&&!prMap){warn.style.display='block';warn.innerHTML='No matching <b>proteomics DEP</b> for this comparison. Switch to <b>[B]</b> if your phospho data is already corrected, or upload the proteomics DEP.';$('regStats').innerHTML='';return;}
-  const cut=parseFloat($('regCut').value);
-  const sites=[];let missingProt=0;
-  Object.keys(phMap).forEach(k=>{const ph=phMap[k];if(!Number.isFinite(ph.lfc))return;
-    let prL=null,reg;
-    if(mode==='correct'){
-      const pr=prMap[ph.gene];
-      if(pr&&Number.isFinite(pr.lfc)){prL=pr.lfc;reg=ph.lfc-pr.lfc;}
-      else{missingProt++;prL=null;reg=ph.lfc;}
-    }else{reg=ph.lfc;}
-    sites.push({site:k,gene:ph.gene,phLFC:ph.lfc,prLFC:prL,reg,phP:ph.P,phAdj:ph.p,abs:Math.abs(reg),paired:prL!==null});
-  });
-  if(mode==='correct'&&missingProt>0){warn.style.display='block';warn.innerHTML=`<b>${missingProt}</b> phospho sites have no matching protein Log2FC — they are shown using phospho.Log2FC unchanged (flagged in table as <i>paired = false</i>). Consider mode <b>[B]</b> if upstream already corrected.`;}
-  if(mode==='asis'){warn.style.display='block';warn.innerHTML='Mode <b>[B]</b>: phospho.Log2FC is used <b>as</b> regulation. Proteomics input is ignored.';}
-  sites.sort((a,b)=>b.abs-a.abs);
-  // stats
-  const up=sites.filter(s=>s.reg>=cut).length,dn=sites.filter(s=>s.reg<=-cut).length;
-  const noProt=sites.filter(s=>s.prLFC===null).length;
-  $('regStats').innerHTML='';
-  [['Sites scored',sites.length],['Up-regulated',`<span class="up">${up}</span>`],['Down-regulated',`<span class="dn">${dn}</span>`],['Without matching protein',noProt]]
-    .forEach(([l,v])=>{const d=document.createElement('div');d.className='stat-card';d.innerHTML=`<div class="val">${v}</div><div class="lbl">${l}</div>`;$('regStats').appendChild(d);});
-  // volcano (regulation vs phospho -log10P): split paired / unpaired so users can see
-  // which 'corrected' points actually had a protein Log2FC subtracted.
-  const ctx=$('regVolcano').getContext('2d');if(STATE.charts.regVolcano)STATE.charts.regVolcano.destroy();
-  const sigPaired   = sites.filter(s=> Math.abs(s.reg)>=cut && Number.isFinite(s.phP) &&  s.paired);
-  const sigUnpaired = sites.filter(s=> Math.abs(s.reg)>=cut && Number.isFinite(s.phP) && !s.paired);
-  const nsPaired    = sites.filter(s=>!(Math.abs(s.reg)>=cut)&& Number.isFinite(s.phP) &&  s.paired);
-  const nsUnpaired  = sites.filter(s=>!(Math.abs(s.reg)>=cut)&& Number.isFinite(s.phP) && !s.paired);
-  const sig=[...sigPaired,...sigUnpaired], ns=[...nsPaired,...nsUnpaired];
-  // add one nice-step of headroom on the Y axis
-  const yVals=[...sig,...ns].map(s=>-log10(s.phP)).filter(Number.isFinite);
-  const yMaxRaw=yVals.length?Math.max(...yVals):1;
-  const yPad=(function(range){
-    const raw=range/8;if(!Number.isFinite(raw)||raw<=0)return 0.5;
-    const exp=Math.floor(Math.log10(raw));
-    const f=raw/Math.pow(10,exp);
-    const nice=f<1.5?1:f<3?2:f<7?5:10;
-    return nice*Math.pow(10,exp);
-  })(yMaxRaw);
-  const yMaxPadded=Math.ceil((yMaxRaw+yPad)/yPad)*yPad;
-  STATE.charts.regVolcano=new Chart(ctx,{type:'scatter',data:{datasets:[
-    {label:'reg ≥ cut (paired)',  data:sigPaired  .map(s=>({x:s.reg,y:-log10(s.phP),gene:s.gene,site:s.site})),backgroundColor:'#c0392b',                pointRadius:3,  pointStyle:'circle'},
-    {label:'reg ≥ cut (unpaired)',data:sigUnpaired.map(s=>({x:s.reg,y:-log10(s.phP),gene:s.gene,site:s.site})),backgroundColor:'#c0392b66',borderColor:'#c0392b',pointRadius:3.5,pointStyle:'triangle'},
-    {label:'ns (paired)',         data:nsPaired   .map(s=>({x:s.reg,y:-log10(s.phP),gene:s.gene,site:s.site})),backgroundColor:'#88909e55',                pointRadius:1.6, pointStyle:'circle'},
-    {label:'ns (unpaired)',       data:nsUnpaired .map(s=>({x:s.reg,y:-log10(s.phP),gene:s.gene,site:s.site})),backgroundColor:'#88909e22',borderColor:'#88909e',pointRadius:2,   pointStyle:'triangle'}
-  ]},options:{responsive:true,plugins:{legend:{position:'bottom'},tooltip:{callbacks:{label:c=>`${c.raw.gene} (${c.raw.site})  reg:${fmt(c.raw.x,3)}  -log10P:${fmt(c.raw.y,3)}`}}},
-    scales:{x:{title:{display:true,text:'regulation = phospho.Log2FC − protein.Log2FC'}},
-            y:{title:{display:true,text:'−log10 phospho P'},beginAtZero:true,suggestedMax:yMaxPadded}}
-  }});
-  // table
-  lastRegRows=sites.slice(0,500);
-  const cols=mode==='correct'?['site','gene','phLFC','prLFC','reg','paired','phP','phAdj']:['site','gene','phLFC','reg','phP','phAdj'];
-  const tbl=$('regTable');tbl.querySelector('thead').innerHTML='<tr>'+cols.map(c=>`<th>${c}</th>`).join('')+'</tr>';
-  const tb=tbl.querySelector('tbody');tb.innerHTML='';
-  lastRegRows.forEach(r=>{const tr=document.createElement('tr');tr.innerHTML=cols.map(c=>{let v=r[c];if(typeof v==='number')v=fmt(v,4);if(typeof v==='boolean')v=v?'✓':'';return `<td>${esc(v??'')}</td>`;}).join('');tb.appendChild(tr);});
-  const regWrap=tbl.closest('.table-wrap');
-  let regNote=document.getElementById('regTableTrunc');
-  if(sites.length>500){
-    if(!regNote){regNote=document.createElement('p');regNote.id='regTableTrunc';regNote.className='note';regNote.style.color='var(--warn)';regWrap.parentNode.insertBefore(regNote,regWrap.nextSibling);}
-    regNote.textContent=`Showing 500 of ${sites.length} rows. Export CSV to see all.`;
-  } else if(regNote){regNote.remove();}
-}
-$('regMode').addEventListener('change',renderReg);
 
 /* ===========================================================
  * INIT
