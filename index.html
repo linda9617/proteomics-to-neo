@@ -435,8 +435,7 @@ body{padding-bottom:24px;}
           </div><!-- end gmtSubSels -->
 
           <div style="margin-top:8px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-              <button class="btn-sm btn-primary" id="gmtLoadSelBtn" type="button" style="font-weight:400;padding:8px 11px;">Load selected databases</button>
-              <button class="btn-sm btn-ghost" type="button" id="gmtNoneBtn" style="font-weight:400;padding:8px 11px;">None</button>
+              <button class="btn-sm btn-ghost" type="button" id="gmtNoneBtn" style="font-weight:400;padding:8px 11px;">Clear</button>
               <span id="gmtLoadStatus" style="font-size:.78rem;color:var(--muted);display:none;"></span>
               <label class="btn-sm" style="font-weight:400;padding:8px 11px;margin-left:auto;" title="Upload your own .gmt or .zip file">📂 Upload GMT file(s)<input type="file" id="fileInputGmt" multiple accept=".gmt,.zip" style="display:none;"></label>
           </div>
@@ -1921,10 +1920,9 @@ document.querySelectorAll('.subtab[data-gtab]').forEach(t=>t.addEventListener('c
 document.querySelectorAll('.subtab[data-gsrc]').forEach(t=>t.addEventListener('click',()=>{document.querySelectorAll('.subtab[data-gsrc]').forEach(x=>x.classList.remove('active'));t.classList.add('active');$('gsrc-run').style.display=t.dataset.gsrc==='run'?'block':'none';if(t.dataset.gsrc==='run')refreshGseaRunControls();}));
 $('gseaRunOmics').addEventListener('change',refreshGseaRunControls);
 $('gseaRunBtn').addEventListener('click',runGseaFromDep);
-document.querySelectorAll('.gmt-sel').forEach(i=>i.addEventListener('change',updateGmtSelSummary));
+document.querySelectorAll('.gmt-sel').forEach(i=>i.addEventListener('change',()=>onGmtCheckChange(i)));
 updateGmtSelSummary();
-$('gmtLoadSelBtn').addEventListener('click',loadSelectedGmts);
-$('gmtNoneBtn').addEventListener('click',()=>{document.querySelectorAll('.gmt-sel').forEach(i=>i.checked=false);updateGmtSelSummary();});
+$('gmtNoneBtn').addEventListener('click',()=>{document.querySelectorAll('.gmt-sel').forEach(i=>i.checked=false);STATE.gmt.length=0;updateGmtSelSummary();drawFileList();refreshGseaRunControls();showGmtLoadStatus('');});
 function updateGmtSelSummary(){
   // Cascade: if any parent is checked, disable+uncheck its descendant children
   document.querySelectorAll('input.gmt-sel-sub').forEach(cb=>{
@@ -1943,45 +1941,37 @@ function updateGmtSelSummary(){
   const sel=[...document.querySelectorAll('input.gmt-sel:checked')];
   sum.textContent=sel.length===0?'(none selected)':`(${sel.length} database${sel.length>1?'s':''} selected)`;
 }
-async function loadSelectedGmts(){
-  const files=[...document.querySelectorAll('.gmt-sel:checked')].map(i=>i.value);
+function showGmtLoadStatus(msg,isErr){
   const st=$('gmtLoadStatus');
-  function showStatus(msg,isErr){
-    if(!st)return;
-    st.textContent=msg;
-    st.style.display=msg?'block':'none';
-    st.style.color=isErr?'var(--err)':msg.startsWith('✓')?'var(--ok)':'var(--muted)';
-    st.style.fontWeight='400';
-  }
-  if(!files.length){showStatus('No databases selected.',false);return;}
-  const alreadyLoaded=new Set(STATE.gmt.map(g=>g.name));
-  const toLoad=files.filter(f=>!alreadyLoaded.has(f.replace(/\.zip$/i,'').replace(/\.gmt$/i,'')));
-  const skipped=files.length-toLoad.length;
-  if(!toLoad.length){showStatus(`✓ Already loaded (${skipped} database${skipped>1?'s':''} skipped).`,false);return;}
-  const btn=$('gmtLoadSelBtn');
-  btn.disabled=true;
-  let loaded=0,failed=[];
-  for(const fname of toLoad){
-    showStatus(`Loading ${fname} (${loaded+1}/${files.length})…`,false);
-    const url='gmt/'+fname;
+  if(!st)return;
+  st.textContent=msg;
+  st.style.display=msg?'inline':'none';
+  st.style.color=isErr?'var(--err)':'var(--muted)';
+}
+async function onGmtCheckChange(cb){
+  updateGmtSelSummary();
+  const fname=cb.value;
+  const key=fname.replace(/\.zip$/i,'').replace(/\.gmt$/i,'');
+  if(cb.checked){
+    if(STATE.gmt.some(g=>g.name.replace(/\.gmt$/i,'')===key))return;
+    showGmtLoadStatus(`Loading ${key}…`,false);
     try{
-      const r=await fetch(url);
+      const r=await fetch('gmt/'+fname);
       if(!r.ok)throw new Error('HTTP '+r.status);
       const blob=await r.blob();
       await handleZip(new File([blob],fname),null);
-      loaded++;
+      showGmtLoadStatus('');
     }catch(err){
       console.error('Failed to load '+fname,err);
-      failed.push(fname.split('.')[0]);
+      cb.checked=false;
+      updateGmtSelSummary();
+      showGmtLoadStatus(`Failed to load ${key}`,true);
     }
+  }else{
+    const idx=STATE.gmt.findIndex(g=>g.name.replace(/\.gmt$/i,'')===key);
+    if(idx>=0){STATE.gmt.splice(idx,1);drawFileList();refreshGseaRunControls();}
+    showGmtLoadStatus('');
   }
-  btn.disabled=false;
-  if(failed.length)showStatus(`Loaded ${loaded}, failed: ${failed.join(', ')}${skipped?`, skipped ${skipped} already loaded`:''}`,true);
-  else showStatus(`✓ Loaded ${loaded} database${loaded>1?'s':''}${skipped?` (${skipped} already loaded, skipped)`:''}. Ready to run.`,false);
-  refreshGseaRunControls();
-}
-async function loadRemoteGmt(userTriggered){
-  // kept as no-op stub — replaced by loadSelectedGmts
 }
 function refreshGseaRunControls(){
   const omics=$('gseaRunOmics')?.value||'proteomics';
