@@ -83,6 +83,7 @@ tr:hover td{background:var(--panel-2);}
 
 .cb-wrap{display:inline-flex;flex-wrap:wrap;gap:4px 10px;padding:6px 9px;border:1px solid var(--line);border-radius:8px;background:var(--panel-2);min-height:38px;align-items:center;}
 .cb-item{display:flex;align-items:center;gap:4px;font-size:.8rem;cursor:pointer;white-space:nowrap;}
+.gmt-note{color:var(--muted);font-size:.7rem;margin-left:2px;}
 
 .heatmap-wrap{overflow:auto;max-width:100%;}
 .hm-grid{display:inline-grid;gap:1px;background:#fff;}
@@ -123,7 +124,7 @@ body{padding-bottom:24px;}
 </head>
 <body>
 <header>
-  <h1>Proteomics-to-Neo v1.1</h1>
+  <h1>Proteomics-to-Neo v1.2</h1>
   <p>Proteomics &amp; phosphoproteomics explorer · differential, GSEA, cross-omics regulation</p>
   <p class="author">By ILYH</p>
 </header>
@@ -133,6 +134,7 @@ body{padding-bottom:24px;}
     <div class="tab active" data-panel="upload">Upload</div>
     <div class="tab" data-panel="setup">Samples</div>
     <div class="tab" data-panel="qc">QC</div>
+    <div class="tab" data-panel="expr">Expression</div>
     <div class="tab" data-panel="diff">Differential</div>
     <div class="tab" data-panel="hm">Heatmap</div>
     <div class="tab" data-panel="gsea">GSEA</div>
@@ -162,8 +164,8 @@ body{padding-bottom:24px;}
       <div style="display:flex;align-items:center;justify-content:space-between;margin-top:18px;">
         <h3 style="margin:0;">Uploaded files &amp; feature readiness</h3>
         <div style="display:flex;gap:8px;">
-          <button class="btn-sm" id="loadDemoBtn" type="button" title="Load a synthetic multi-omics dataset to explore the app" style="padding-top:7px;padding-bottom:7px;">Load demo data</button>
-          <button class="btn-sm" id="clearAllBtn" type="button" title="Remove all uploaded CSVs and GMTs" style="padding-top:7px;padding-bottom:7px;">Clear all</button>
+          <button class="btn-sm" id="loadDemoBtn" type="button" title="Load a synthetic multi-omics dataset to explore the app" style="font-weight:400;padding:6px 11px;">Load demo data</button>
+          <button class="btn-sm" id="clearAllBtn" type="button" title="Remove all uploaded CSVs and GMTs" style="font-weight:400;padding:6px 11px;">Clear all</button>
         </div>
       </div>
       <div id="readinessTable" style="margin-top:8px;"></div>
@@ -194,6 +196,12 @@ body{padding-bottom:24px;}
         <label class="label" style="margin:0;margin-left:14px;"><input type="checkbox" id="pcaFlipX" checked> Flip PC1</label>
         <label class="label" style="margin:0;"><input type="checkbox" id="pcaFlipY" checked> Flip PC2</label>
         <label class="label" style="margin:0;"><input type="checkbox" id="pcaSwapXY"> Swap PC1 ↔ PC2</label>
+        <label class="label" style="margin:0;margin-left:14px;">Group circles:</label>
+        <select id="pcaCircleStyle" style="font-size:.78rem;">
+          <option value="none">None</option>
+          <option value="ellipse" selected>Filled ellipse (95% CI)</option>
+          <option value="circle">Min enclosing circle</option>
+        </select>
       </div>
       <div class="stat-grid" id="qcStats"></div>
       <div class="grid-2">
@@ -201,6 +209,47 @@ body{padding-bottom:24px;}
         <div class="chart-box"><h3 id="qcCVTitle">CV distribution (PG.CV)</h3><canvas id="qcCV" height="240"></canvas></div>
         <div class="chart-box"><h3>Sample correlation (Pearson)</h3><div id="qcCorr"></div></div>
         <div class="chart-box"><h3>PCA (top 2 PCs)</h3><canvas id="qcPCA" height="260"></canvas><div id="qcPCAlegend" class="legend-row"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 3b. EXPRESSION ===== -->
+  <div id="panel-expr" class="panel">
+    <div class="card">
+      <h2>Expression</h2>
+      <div class="src" id="exprSrc"></div>
+      <p style="font-size:.75rem;color:var(--muted);margin-bottom:8px;">Values are read directly from the uploaded protein matrix (e.g. Spectronaut <code>PG.NormalizedQuantity</code>, log&#8322;-transformed). This is <em>not</em> equivalent to log&#8322; abundance normalized by total peptide — that method requires a separate peptide-level report.</p>
+      <div class="row" style="margin-bottom:10px;flex-wrap:wrap;gap:8px;">
+        <label class="label" style="margin:0;">Protein:</label>
+        <input type="text" id="exprGene" list="exprGeneList" style="min-width:180px;height:32px;border:1px solid var(--line);border-radius:8px;padding:0 10px;font-size:.85rem;" placeholder="Search protein…">
+        <datalist id="exprGeneList"></datalist>
+        <label class="label" style="margin:0;margin-left:14px;">Reference group:</label>
+        <select id="exprRef" style="min-width:120px;"></select>
+        <label class="label" style="margin:0;margin-left:14px;">Values:</label>
+        <select id="exprNorm">
+          <option value="raw">Raw (log&#8322;)</option>
+          <option value="fold">Log&#8322;FC vs reference</option>
+          <option value="ratio">Ratio vs reference (linear fold-change)</option>
+        </select>
+        <label class="label" style="margin:0;margin-left:14px;">Chart:</label>
+        <select id="exprChartType">
+          <option value="bar">Bar (mean ± SE)</option>
+          <option value="box">Box plot</option>
+          <option value="dot">Dot (individual samples)</option>
+        </select>
+      </div>
+      <div class="grid-2">
+        <div class="chart-box">
+          <h3>Protein expression &middot; Proteomics</h3>
+          <canvas id="exprProCanvas" height="280"></canvas>
+        </div>
+        <div class="chart-box">
+          <h3>Phospho site abundance</h3>
+          <div style="margin-bottom:6px;font-size:.8rem;">
+            <label class="label" style="margin:0;">Site: <select id="exprPhosSite" style="min-width:220px;"></select></label>
+          </div>
+          <canvas id="exprPhosCanvas" height="260"></canvas>
+        </div>
       </div>
     </div>
   </div>
@@ -285,15 +334,113 @@ body{padding-bottom:24px;}
 
       <div id="gsrc-run" style="display:none;border:1px solid var(--line);border-radius:9px;padding:12px;margin-bottom:14px;background:var(--panel-2);">
         <h3 style="margin-bottom:8px;">Run GSEA in browser</h3>
-        <label class="upload-zone" id="dropZoneGmt" style="margin-bottom:10px;padding:14px;">
-          <span class="icon" style="font-size:1.4rem;">📚</span>
-          <p><strong>Gene-set GMT</strong> (MSigDB <code>.gmt</code> or ZIP of GMTs)</p>
+
+        <!-- GMT database selector -->
+        <details id="gmtSelectorDetails" open style="margin-bottom:10px;border:1px solid var(--line);border-radius:7px;padding:8px 12px;background:#fff;">
+          <summary style="cursor:pointer;font-size:.85rem;font-weight:600;color:var(--brand-mid);user-select:none;">Select databases to load <span id="gmtSelSummary" style="font-weight:400;color:var(--muted);"></span></summary>
+
+          <!-- MSigDB All — top level, disables everything else -->
+          <div id="gmtSubSels">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:2px 20px;font-size:.79rem;margin-top:8px;margin-bottom:4px;">
+              <label class="cb-item" style="font-size:.79rem;"><input type="checkbox" class="gmt-sel" id="gmtSelAll" value="msigdb.v2026.1.Hs.symbols.zip"> <b>MSigDB All</b> — all 35,361 gene sets</label>
+            </div>
+            <hr style="border:none;border-top:1px solid var(--line);margin:4px 0 6px;">
+
+          <!-- H: Hallmark -->
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:2px 20px;font-size:.79rem;">
+
+              <!-- LEFT: H, C1, C2, C3 -->
+              <div>
+                <!-- H -->
+                <label class="cb-item"><input type="checkbox" class="gmt-sel gmt-sel-sub" value="h.all.v2026.1.Hs.symbols.zip" data-parents="gmtSelAll"> <b>H</b> Hallmark gene sets <span class="gmt-note">(50)</span></label>
+
+                <!-- C1 -->
+                <label class="cb-item" style="margin-top:5px;"><input type="checkbox" class="gmt-sel gmt-sel-sub" value="c1.all.v2026.1.Hs.symbols.zip" data-parents="gmtSelAll"> <b>C1</b> Positional gene sets <span class="gmt-note">(302 — cytobands)</span></label>
+
+                <!-- C2 -->
+                <label class="cb-item" style="margin-top:5px;"><input type="checkbox" class="gmt-sel gmt-sel-sub" id="gmtC2All" value="c2.all.v2026.1.Hs.symbols.zip" data-parents="gmtSelAll"> <b>C2</b> Curated gene sets <span class="gmt-note">(7,670)</span></label>
+                <div style="border-left:2px solid #dde2ea;margin-left:9px;padding-left:7px;">
+                  <label class="cb-item"><input type="checkbox" class="gmt-sel gmt-sel-sub" id="gmtC2Cp" value="c2.cp.v2026.1.Hs.symbols.zip" data-parents="gmtSelAll gmtC2All"> CP: All canonical pathways <span class="gmt-note">(4,115)</span></label>
+                  <div style="border-left:2px solid #eaecf0;margin-left:9px;padding-left:7px;">
+                    <label class="cb-item"><input type="checkbox" class="gmt-sel gmt-sel-sub" value="c2.cp.reactome.v2026.1.Hs.symbols.zip" data-parents="gmtSelAll gmtC2All gmtC2Cp" checked> Reactome <span class="gmt-note">(1,839)</span></label>
+                    <label class="cb-item"><input type="checkbox" class="gmt-sel gmt-sel-sub" value="c2.cp.kegg_medicus.v2026.1.Hs.symbols.zip" data-parents="gmtSelAll gmtC2All gmtC2Cp"> KEGG Medicus <span class="gmt-note">(658)</span></label>
+                    <label class="cb-item"><input type="checkbox" class="gmt-sel gmt-sel-sub" value="c2.cp.kegg_legacy.v2026.1.Hs.symbols.zip" data-parents="gmtSelAll gmtC2All gmtC2Cp"> KEGG Legacy <span class="gmt-note">(186)</span></label>
+                    <label class="cb-item"><input type="checkbox" class="gmt-sel gmt-sel-sub" value="c2.cp.wikipathways.v2026.1.Hs.symbols.zip" data-parents="gmtSelAll gmtC2All gmtC2Cp"> WikiPathways <span class="gmt-note">(925)</span></label>
+                    <label class="cb-item"><input type="checkbox" class="gmt-sel gmt-sel-sub" value="c2.cp.pid.v2026.1.Hs.symbols.zip" data-parents="gmtSelAll gmtC2All gmtC2Cp"> PID <span class="gmt-note">(196)</span></label>
+                    <label class="cb-item"><input type="checkbox" class="gmt-sel gmt-sel-sub" value="c2.cp.biocarta.v2026.1.Hs.symbols.zip" data-parents="gmtSelAll gmtC2All gmtC2Cp"> BioCarta <span class="gmt-note">(292)</span></label>
+                  </div>
+                  <label class="cb-item"><input type="checkbox" class="gmt-sel gmt-sel-sub" value="c2.cgp.v2026.1.Hs.symbols.zip" data-parents="gmtSelAll gmtC2All"> CGP: Chemical &amp; genetic perturbations <span class="gmt-note">(3,555)</span></label>
+                </div>
+
+                <!-- C3 -->
+                <label class="cb-item" style="margin-top:5px;"><input type="checkbox" class="gmt-sel gmt-sel-sub" id="gmtC3All" value="c3.all.v2026.1.Hs.symbols.zip" data-parents="gmtSelAll"> <b>C3</b> Regulatory target gene sets <span class="gmt-note">(3,714)</span></label>
+                <div style="border-left:2px solid #dde2ea;margin-left:9px;padding-left:7px;">
+                  <label class="cb-item"><input type="checkbox" class="gmt-sel gmt-sel-sub" id="gmtC3Tft" value="c3.tft.v2026.1.Hs.symbols.zip" data-parents="gmtSelAll gmtC3All"> TFT: Transcription factor targets <span class="gmt-note">(1,116)</span></label>
+                  <div style="border-left:2px solid #eaecf0;margin-left:9px;padding-left:7px;">
+                    <label class="cb-item"><input type="checkbox" class="gmt-sel gmt-sel-sub" value="c3.tft.gtrd.v2026.1.Hs.symbols.zip" data-parents="gmtSelAll gmtC3All gmtC3Tft"> GTRD <span class="gmt-note">(506 — ChIP-seq)</span></label>
+                    <label class="cb-item"><input type="checkbox" class="gmt-sel gmt-sel-sub" value="c3.tft.tft_legacy.v2026.1.Hs.symbols.zip" data-parents="gmtSelAll gmtC3All gmtC3Tft"> TFT Legacy <span class="gmt-note">(610)</span></label>
+                  </div>
+                  <label class="cb-item"><input type="checkbox" class="gmt-sel gmt-sel-sub" id="gmtC3Mir" value="c3.mir.v2026.1.Hs.symbols.zip" data-parents="gmtSelAll gmtC3All"> MIR: microRNA targets <span class="gmt-note">(2,598)</span></label>
+                  <div style="border-left:2px solid #eaecf0;margin-left:9px;padding-left:7px;">
+                    <label class="cb-item"><input type="checkbox" class="gmt-sel gmt-sel-sub" value="c3.mir.mirdb.v2026.1.Hs.symbols.zip" data-parents="gmtSelAll gmtC3All gmtC3Mir"> miRDB <span class="gmt-note">(2,377)</span></label>
+                    <label class="cb-item"><input type="checkbox" class="gmt-sel gmt-sel-sub" value="c3.mir.mir_legacy.v2026.1.Hs.symbols.zip" data-parents="gmtSelAll gmtC3All gmtC3Mir"> MIR Legacy <span class="gmt-note">(221)</span></label>
+                  </div>
+                </div>
+              </div><!-- end left col -->
+
+              <!-- RIGHT: C4, C5, C6, C7, C8, C9 -->
+              <div>
+                <!-- C4 -->
+                <label class="cb-item"><input type="checkbox" class="gmt-sel gmt-sel-sub" id="gmtC4All" value="c4.all.v2026.1.Hs.symbols.zip" data-parents="gmtSelAll"> <b>C4</b> Computational gene sets <span class="gmt-note">(1,006)</span></label>
+                <div style="border-left:2px solid #dde2ea;margin-left:9px;padding-left:7px;">
+                  <label class="cb-item"><input type="checkbox" class="gmt-sel gmt-sel-sub" value="c4.3ca.v2026.1.Hs.symbols.zip" data-parents="gmtSelAll gmtC4All"> 3CA: Curated Cancer Cell Atlas <span class="gmt-note">(148)</span></label>
+                  <label class="cb-item"><input type="checkbox" class="gmt-sel gmt-sel-sub" value="c4.cgn.v2026.1.Hs.symbols.zip" data-parents="gmtSelAll gmtC4All"> CGN: Cancer gene neighborhoods <span class="gmt-note">(427)</span></label>
+                  <label class="cb-item"><input type="checkbox" class="gmt-sel gmt-sel-sub" value="c4.cm.v2026.1.Hs.symbols.zip" data-parents="gmtSelAll gmtC4All"> CM: Cancer modules <span class="gmt-note">(431)</span></label>
+                </div>
+
+                <!-- C5 -->
+                <label class="cb-item" style="margin-top:5px;"><input type="checkbox" class="gmt-sel gmt-sel-sub" id="gmtC5All" value="c5.all.v2026.1.Hs.symbols.zip" data-parents="gmtSelAll"> <b>C5</b> Ontology gene sets <span class="gmt-note">(16,283)</span></label>
+                <div style="border-left:2px solid #dde2ea;margin-left:9px;padding-left:7px;">
+                  <label class="cb-item"><input type="checkbox" class="gmt-sel gmt-sel-sub" id="gmtC5Go" value="c5.go.v2026.1.Hs.symbols.zip" data-parents="gmtSelAll gmtC5All"> GO: Gene Ontology <span class="gmt-note">(10,490)</span></label>
+                  <div style="border-left:2px solid #eaecf0;margin-left:9px;padding-left:7px;">
+                    <label class="cb-item"><input type="checkbox" class="gmt-sel gmt-sel-sub" value="c5.go.bp.v2026.1.Hs.symbols.zip" data-parents="gmtSelAll gmtC5All gmtC5Go" checked> BP: Biological Process <span class="gmt-note">(7,538)</span></label>
+                    <label class="cb-item"><input type="checkbox" class="gmt-sel gmt-sel-sub" value="c5.go.mf.v2026.1.Hs.symbols.zip" data-parents="gmtSelAll gmtC5All gmtC5Go"> MF: Molecular Function <span class="gmt-note">(1,872)</span></label>
+                    <label class="cb-item"><input type="checkbox" class="gmt-sel gmt-sel-sub" value="c5.go.cc.v2026.1.Hs.symbols.zip" data-parents="gmtSelAll gmtC5All gmtC5Go"> CC: Cellular Component <span class="gmt-note">(1,080)</span></label>
+                  </div>
+                  <label class="cb-item"><input type="checkbox" class="gmt-sel gmt-sel-sub" value="c5.hpo.v2026.1.Hs.symbols.zip" data-parents="gmtSelAll gmtC5All"> HPO: Human Phenotype Ontology <span class="gmt-note">(5,793)</span></label>
+                </div>
+
+                <!-- C6 -->
+                <label class="cb-item" style="margin-top:5px;"><input type="checkbox" class="gmt-sel gmt-sel-sub" value="c6.all.v2026.1.Hs.symbols.zip" data-parents="gmtSelAll"> <b>C6</b> Oncogenic signatures <span class="gmt-note">(189 — RAS, MYC, EGFR…)</span></label>
+
+                <!-- C7 -->
+                <label class="cb-item" style="margin-top:5px;"><input type="checkbox" class="gmt-sel gmt-sel-sub" id="gmtC7All" value="c7.all.v2026.1.Hs.symbols.zip" data-parents="gmtSelAll"> <b>C7</b> Immunologic signatures <span class="gmt-note">(5,219)</span></label>
+                <div style="border-left:2px solid #dde2ea;margin-left:9px;padding-left:7px;">
+                  <label class="cb-item"><input type="checkbox" class="gmt-sel gmt-sel-sub" value="c7.immunesigdb.v2026.1.Hs.symbols.zip" data-parents="gmtSelAll gmtC7All"> ImmuneSigDB <span class="gmt-note">(4,872)</span></label>
+                  <label class="cb-item"><input type="checkbox" class="gmt-sel gmt-sel-sub" value="c7.vax.v2026.1.Hs.symbols.zip" data-parents="gmtSelAll gmtC7All"> VAX: Vaccine response <span class="gmt-note">(347)</span></label>
+                </div>
+
+                <!-- C8, C9 -->
+                <label class="cb-item" style="margin-top:5px;"><input type="checkbox" class="gmt-sel gmt-sel-sub" value="c8.all.v2026.1.Hs.symbols.zip" data-parents="gmtSelAll"> <b>C8</b> Cell type signatures <span class="gmt-note">(866 — single-cell)</span></label>
+                <label class="cb-item" style="margin-top:2px;"><input type="checkbox" class="gmt-sel gmt-sel-sub" value="c9.all.v2026.1.Hs.symbols.zip" data-parents="gmtSelAll"> <b>C9</b> Computational perturbations <span class="gmt-note">(62)</span></label>
+              </div><!-- end right col -->
+
+            </div><!-- end 2-col grid -->
+          </div><!-- end gmtSubSels -->
+
+          <div style="margin-top:8px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+            <button class="btn-sm btn-primary" id="gmtLoadSelBtn" type="button" style="font-weight:400;padding:6px 11px;">Load selected databases</button>
+            <button class="btn-sm btn-ghost" type="button" id="gmtNoneBtn" style="font-weight:400;padding:6px 11px;">None</button>
+            <span id="gmtLoadStatus" style="font-size:.78rem;color:var(--muted);"></span>
+          </div>
+        </details>
+
+        <!-- Manual upload fallback -->
+        <label class="upload-zone" id="dropZoneGmt" style="margin-bottom:10px;padding:10px;">
+          <span class="icon" style="font-size:1.1rem;">📂</span>
+          <p style="font-size:.8rem;"><strong>Or drag-and-drop</strong> your own <code>.gmt</code> / <code>.zip</code> files here</p>
           <input type="file" id="fileInputGmt" multiple accept=".gmt,.zip">
         </label>
-        <div class="row" style="margin-bottom:8px;">
-          <button class="btn-sm" id="loadRemoteGmt" type="button">Load default MSigDB GMT</button>
-          <span id="remoteGmtStatus" style="font-size:.78rem;color:var(--muted);"></span>
-        </div>
         <div id="gmtStatus" class="src" style="margin-bottom:8px;"></div>
         <div class="row" style="margin-bottom:8px;">
           <label class="label" style="margin:0;">Omics:</label>
@@ -327,7 +474,7 @@ body{padding-bottom:24px;}
           <summary style="cursor:pointer;font-size:.82rem;color:var(--brand-mid);user-select:none;">Collections to use <span id="gseaCollSummary" style="color:var(--muted);font-weight:400;"></span></summary>
           <div class="cb-wrap" id="gseaRunCollWrap" style="min-width:260px;margin-top:6px;"></div>
         </details>
-        <button class="btn-primary btn-sm" id="gseaRunBtn">▶ Run GSEA</button>
+        <button class="btn-primary btn-sm" id="gseaRunBtn" style="font-weight:400;padding:10px 14px;">Run GSEA</button>
         <span id="gseaProgress" style="margin-left:12px;font-size:.82rem;color:var(--brand-mid);"></span>
       </div>
 
@@ -489,6 +636,7 @@ function gotoTab(name){
 function onTabEnter(p){
   if(p==='setup')renderSetup();
   else if(p==='qc')renderQC();
+  else if(p==='expr')renderExpr();
   else if(p==='diff')renderDiff();
   else if(p==='hm')renderHmPanel();
   else if(p==='gsea')renderGsea();
@@ -653,22 +801,14 @@ function drawReadinessTable(){
     ['GSEA — from uploaded CSV',
       cell(Object.keys(p.gsea).length>0,  `${Object.keys(p.gsea).length} GSEA file(s)`),
       cell(Object.keys(ph.gsea).length>0, `${Object.keys(ph.gsea).length} GSEA file(s)`)],
-    ['GSEA — run from DEP (GMT uploaded later)',
+    ['GSEA — run from DEP',
       cell(!!p.dep,  p.dep ?'proteomics DEP ✓':'need proteomics DEP'),
       cell(!!ph.dep, ph.dep?'phospho DEP ✓'   :'need phospho DEP')],
-  ];
-  const shared=[
-    // [label, pro-cell, phos-cell]
     ['Cross-omics scatter',
       cell(!!p.dep,  p.dep ?'proteomics DEP ✓':'need proteomics DEP'),
       cell(!!ph.dep, ph.dep?'phospho DEP ✓'   :'need phospho DEP')],
-    ['Phospho regulation (compute correction)',
-      cell(!!p.dep,  p.dep ?'proteomics DEP ✓':'need proteomics DEP'),
-      cell(!!ph.dep, ph.dep?'phospho DEP ✓'   :'need phospho DEP')],
-    ['Phospho regulation (already corrected)',
-      `<span style="color:var(--muted);font-size:.78rem;"></span>`,
-      cell(!!ph.dep, ph.dep?'phospho DEP ✓':'need phospho DEP')],
   ];
+
   // uploaded files split by omics + unknown
   const proFiles =STATE.files.filter(f=>f.omics==='proteomics'&&f.type!=='unknown');
   const phosFiles=STATE.files.filter(f=>f.omics==='phospho'   &&f.type!=='unknown');
@@ -679,8 +819,6 @@ function drawReadinessTable(){
       <thead><tr><th style="text-align:left;">Feature</th><th style="text-align:left;">Proteomics</th><th style="text-align:left;">Phospho</th></tr></thead>
       <tbody>
         ${perOmics.map(r=>`<tr><td>${r[0]}</td><td>${r[1]}</td><td>${r[2]}</td></tr>`).join('')}
-        <tr><td colspan="3" style="background:var(--panel-2);font-weight:600;padding-top:6px;">Cross-omics &amp; shared</td></tr>
-        ${shared.map(r=>`<tr><td>${r[0]}</td><td>${r[1]}</td><td>${r[2]}</td></tr>`).join('')}
       </tbody>
     </table>
     <div style="margin-top:14px;display:grid;grid-template-columns:1fr 1fr;gap:10px;">
@@ -713,6 +851,7 @@ function updateAllSrc(){
   if($('hmSrc'))$('hmSrc').innerHTML=srcLine([STATE[omH].matrix&&{label:'Matrix',name:STATE[omH].matrix.name},STATE[omH].dep&&{label:'DEP (for top ranking)',name:STATE[omH].dep.name}]);
   if($('gseaSrc')){const all=[...Object.values(STATE.proteomics.gsea),...Object.values(STATE.phospho.gsea)];$('gseaSrc').innerHTML=all.length?(`GSEA files (${all.length}): `+all.map(f=>f.name).join(' · ')):'no GSEA files loaded';}
   if($('crossSrc'))$('crossSrc').innerHTML=srcLine([STATE.proteomics.dep&&{label:'Proteomics DEP',name:STATE.proteomics.dep.name},STATE.phospho.dep&&{label:'Phospho DEP',name:STATE.phospho.dep.name}]);
+  if($('exprSrc'))$('exprSrc').innerHTML=srcLine([STATE.proteomics.matrix&&{label:'Proteomics matrix',name:STATE.proteomics.matrix.name},STATE.phospho.matrix&&{label:'Phospho matrix',name:STATE.phospho.matrix.name}]);
 }
 function removeFile(id){
   const f=STATE.files.find(x=>x.id===id);if(!f)return;
@@ -724,7 +863,6 @@ function removeFile(id){
 }
 function clearAll(){
   if(!STATE.files.length&&!STATE.gmt.length){return;}
-  if(!confirm('Clear all uploaded files (CSVs and GMTs)? This cannot be undone.'))return;
   STATE.files=[];
   STATE.proteomics={matrix:null,dep:null,gsea:{}};
   STATE.phospho   ={matrix:null,dep:null,gsea:{}};
@@ -748,7 +886,6 @@ $('clearAllBtn')&&$('clearAllBtn').addEventListener('click',clearAll);
  * ============================================================*/
 function loadDemo(){
   if(STATE.files.length||STATE.gmt.length){
-    if(!confirm('Replace currently loaded files with demo data?'))return;
     STATE.files=[];STATE.proteomics={matrix:null,dep:null,gsea:{}};STATE.phospho={matrix:null,dep:null,gsea:{}};STATE.groups={proteomics:{},phospho:{}};STATE.gmt=[];
   }
   // seeded PRNG for reproducibility
@@ -1016,15 +1153,187 @@ function refreshComparisonControls(){
       return `<label class="cb-item"><input type="checkbox" value="${esc(key)}" ${i<3?'checked':''}> ${esc(it.comp)} <span style="color:var(--muted);font-size:.7rem;">[${it.tag}]</span></label>`;
     }).join('')||'<span style="color:var(--muted);font-size:.8rem;">no GSEA loaded</span>';
   }
-  // GSEA collections
-  const allIds=[];Object.values(STATE.proteomics.gsea).concat(Object.values(STATE.phospho.gsea)).forEach(f=>f.rows.forEach(r=>allIds.push(r.ID||'')));
-  const cols=uniq(allIds.map(id=>(id.split('_')[0]||'').toUpperCase())).filter(Boolean).sort();
-  const gc=$('gseaCollection');if(gc)gc.innerHTML=`<option value="ALL">All</option>`+cols.map(c=>`<option>${c}</option>`).join('');
+  // GSEA collections — count unique pathway IDs per collection prefix
+  const _collMap={};
+  Object.values(STATE.proteomics.gsea).concat(Object.values(STATE.phospho.gsea)).forEach(f=>{
+    (f.rows||[]).forEach(r=>{
+      const id=(r.ID||'').toUpperCase();
+      const c=(id.split('_')[0]||'').toUpperCase();
+      if(!c)return;
+      if(!_collMap[c])_collMap[c]=new Set();
+      _collMap[c].add(id);
+    });
+  });
+  const _collKeys=Object.keys(_collMap).sort();
+  const gc=$('gseaCollection');
+  if(gc){
+    const _prev=gc.value;
+    gc.innerHTML=`<option value="ALL">All (${Object.values(_collMap).reduce((s,v)=>s+v.size,0)})</option>`
+      +_collKeys.map(c=>`<option value="${c}">${c} (${_collMap[c].size})</option>`).join('');
+    if(_collKeys.includes(_prev))gc.value=_prev;
+  }
   // cross
   const phCmps=getComparisons('phospho');
   ['crossComp'].forEach(id=>{const s=$(id);if(s)s.innerHTML=phCmps.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');});
 }
 $('diffOmics').addEventListener('change',refreshComparisonControls);
+
+/* ===========================================================
+ * EXPRESSION
+ * ===========================================================*/
+let _exprInited=false;
+function renderExpr(){
+  updateAllSrc();
+  const proMat=STATE.proteomics.matrix;
+  const phMat=STATE.phospho.matrix;
+  const geneEl=$('exprGene'),siteEl=$('exprPhosSite'),refEl=$('exprRef'),normEl=$('exprNorm'),chartEl=$('exprChartType');
+  // Populate gene list from proteomics matrix
+  const proGenes=proMat?uniq(proMat.rows.map(r=>pickGene(r['PG.Genes'])).filter(Boolean)).sort():[];
+  const dl=$('exprGeneList');
+  if(dl)dl.innerHTML=proGenes.map(g=>`<option value="${esc(g)}"></option>`).join('');
+  // Set default gene on first load
+  if(!geneEl.value&&proGenes.length)geneEl.value=proGenes[0];
+  // Populate reference group from all groups
+  const allGroups=uniq([...getGroupList('proteomics'),...getGroupList('phospho')]);
+  const prevRef=refEl.value;
+  refEl.innerHTML=allGroups.length?allGroups.map(g=>`<option value="${esc(g)}">${esc(g)}</option>`).join(''):'<option value="">— upload matrix first —</option>';
+  if(allGroups.includes(prevRef))refEl.value=prevRef;
+  if(!_exprInited){
+    _exprInited=true;
+    geneEl&&geneEl.addEventListener('input',()=>{_exprPopulateSites();_exprDrawCharts();});
+    [refEl,normEl,chartEl].forEach(el=>el&&el.addEventListener('change',()=>{_exprPopulateSites();_exprDrawCharts();}));
+    siteEl&&siteEl.addEventListener('change',_exprDrawPhosChart);
+  }
+  _exprPopulateSites();
+  _exprDrawCharts();
+}
+function _exprPopulateSites(){
+  const gene=$('exprGene')?.value||'';
+  const phMat=STATE.phospho.matrix;
+  const siteEl=$('exprPhosSite');if(!siteEl)return;
+  const sites=phMat&&gene?uniq(phMat.rows.filter(r=>pickGene(r['PG.Genes'])===gene).map(r=>r['PTM.CollapseKey']||r['PG.Genes']||'').filter(Boolean)):[];
+  const prevSite=siteEl.value;
+  siteEl.innerHTML=sites.length?sites.map(s=>`<option value="${esc(s)}">${esc(s)}</option>`).join(''):'<option value="">— no phospho data for this protein —</option>';
+  if(sites.includes(prevSite))siteEl.value=prevSite;
+}
+function _exprDrawCharts(){_exprDrawProChart();_exprDrawPhosChart();}
+function _exprGetData(omics,rowFilter){
+  const mat=STATE[omics].matrix;
+  if(!mat)return{groupOrder:[],points:[]};
+  const groups=ensureGroups(omics);
+  const samples=getSamples(omics);
+  const norm=$('exprNorm')?.value||'raw';
+  const ref=$('exprRef')?.value||'';
+  const rows=mat.rows.filter(rowFilter);
+  if(!rows.length)return{groupOrder:[],points:[]};
+  const sampleVals={};
+  samples.forEach(s=>{
+    const vals=rows.map(r=>safeNum(r[s])).filter(v=>v!==null&&Number.isFinite(v));
+    sampleVals[s]=vals.length?vals.reduce((a,b)=>a+b,0)/vals.length:NaN;
+  });
+  let refMean=0;
+  if((norm==='fold'||norm==='ratio')&&ref){
+    const rv=samples.filter(s=>groups[s]===ref).map(s=>sampleVals[s]).filter(Number.isFinite);
+    refMean=rv.length?rv.reduce((a,b)=>a+b,0)/rv.length:0;
+  }
+  const groupOrder=uniq(samples.map(s=>groups[s]));
+  const points=samples.filter(s=>Number.isFinite(sampleVals[s])).map(s=>{
+    let val=sampleVals[s]-refMean; // log2FC (or raw if refMean=0)
+    if(norm==='ratio')val=Math.pow(2,val); // convert log2FC → linear ratio
+    return{group:groups[s],sample:s,val};
+  });
+  return{groupOrder,points};
+}
+function _exprDrawSingle(canvasId,omics,rowFilter,yLabel){
+  const ctx=$(canvasId)?.getContext('2d');if(!ctx)return;
+  if(STATE.charts[canvasId]){STATE.charts[canvasId].destroy();delete STATE.charts[canvasId];}
+  const{groupOrder,points}=_exprGetData(omics,rowFilter);
+  const chartType=$('exprChartType')?.value||'bar';
+  if(!points.length){
+    ctx.clearRect(0,0,ctx.canvas.width,ctx.canvas.height);
+    ctx.save();ctx.fillStyle='#999';ctx.font='13px sans-serif';ctx.textAlign='center';
+    ctx.fillText('No data',ctx.canvas.width/2,ctx.canvas.height/2);ctx.restore();return;
+  }
+  const groupColor={};
+  groupOrder.forEach((g,i)=>groupColor[g]=COL_PALETTE[i%COL_PALETTE.length]);
+  if(chartType==='bar'){
+    const stats=groupOrder.map(g=>{
+      const vals=points.filter(p=>p.group===g).map(p=>p.val);
+      const sd=stdArr(vals);
+      const se=vals.length>1?sd/Math.sqrt(vals.length):0;
+      return{g,m:meanArr(vals),se,n:vals.length};
+    });
+    const errPlugin={id:'exprErr',afterDatasetsDraw(chart){
+      const meta=chart.getDatasetMeta(0);if(!meta||!meta.data)return;
+      const c=chart.ctx;
+      meta.data.forEach((bar,i)=>{
+        const s=stats[i];if(!s||!Number.isFinite(s.se))return;
+        const x=bar.x,yScale=chart.scales.y;
+        const yTop=yScale.getPixelForValue(s.m+s.se),yBot=yScale.getPixelForValue(s.m-s.se);
+        const cap=Math.max(4,bar.width*0.2);
+        c.save();c.strokeStyle='#333';c.lineWidth=1.5;
+        c.beginPath();c.moveTo(x,yTop);c.lineTo(x,yBot);c.stroke();
+        c.beginPath();c.moveTo(x-cap,yTop);c.lineTo(x+cap,yTop);c.moveTo(x-cap,yBot);c.lineTo(x+cap,yBot);c.stroke();
+        c.restore();
+      });
+    }};
+    const allV=stats.flatMap(s=>[s.m-s.se,s.m+s.se]).filter(Number.isFinite);
+    const pad=(Math.max(...allV)-Math.min(...allV))*0.15||0.5;
+    STATE.charts[canvasId]=new Chart(ctx,{type:'bar',data:{labels:stats.map(s=>s.g),datasets:[{data:stats.map(s=>s.m),backgroundColor:stats.map(s=>groupColor[s.g]+'cc'),borderColor:stats.map(s=>groupColor[s.g]),borderWidth:1,barPercentage:0.55,categoryPercentage:0.8}]},options:{responsive:true,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>{const s=stats[c.dataIndex];return[`mean: ${fmt(s.m,4)}`,`SE: ${fmt(s.se,3)}`,`n = ${s.n}`];}}}},scales:{x:{ticks:{maxRotation:45,minRotation:0}},y:{title:{display:true,text:yLabel},min:Math.min(...allV)-pad,max:Math.max(...allV)+pad}}},plugins:[errPlugin]});
+  } else if(chartType==='box'){
+    const boxStats=groupOrder.map(g=>{
+      const vals=points.filter(p=>p.group===g).map(p=>p.val).filter(Number.isFinite).sort((a,b)=>a-b);
+      if(!vals.length)return{g,q1:NaN,med:NaN,q3:NaN,min:NaN,max:NaN,outliers:[],n:0};
+      const q1=quantile(vals,0.25),med=quantile(vals,0.5),q3=quantile(vals,0.75);
+      const iqr=q3-q1,lo=q1-1.5*iqr,hi=q3+1.5*iqr;
+      let wLo=Infinity,wHi=-Infinity;const outliers=[];
+      vals.forEach(v=>{if(v>=lo&&v<=hi){if(v<wLo)wLo=v;if(v>wHi)wHi=v;}else outliers.push(v);});
+      return{g,q1,med,q3,min:wLo===Infinity?med:wLo,max:wHi===-Infinity?med:wHi,outliers,n:vals.length};
+    });
+    const allV=boxStats.flatMap(b=>[b.min,b.max,...b.outliers]).filter(Number.isFinite);
+    const pad=(Math.max(...allV)-Math.min(...allV))*0.15||0.5;
+    const boxPlugin={id:'exprBox',afterDatasetsDraw(chart){
+      const meta=chart.getDatasetMeta(0);if(!meta||!meta.data)return;
+      const c=chart.ctx;
+      meta.data.forEach((bar,i)=>{
+        const b=boxStats[i];if(!b||!Number.isFinite(b.med))return;
+        const x=bar.x,w=bar.width,yS=chart.scales.y;
+        const yMin=yS.getPixelForValue(b.min),yMax=yS.getPixelForValue(b.max);
+        const yMed=yS.getPixelForValue(b.med);
+        const yQ1=yS.getPixelForValue(b.q1),yQ3=yS.getPixelForValue(b.q3);
+        c.save();c.lineWidth=1;c.strokeStyle='#888';
+        c.beginPath();c.moveTo(x,yMin);c.lineTo(x,yQ1);c.moveTo(x,yQ3);c.lineTo(x,yMax);c.stroke();
+        const cap=Math.max(4,w*0.25);
+        c.beginPath();c.moveTo(x-cap,yMin);c.lineTo(x+cap,yMin);c.moveTo(x-cap,yMax);c.lineTo(x+cap,yMax);c.stroke();
+        c.lineWidth=1.8;c.strokeStyle='#222';
+        c.beginPath();c.moveTo(x-w/2,yMed);c.lineTo(x+w/2,yMed);c.stroke();
+        if(b.outliers.length){c.fillStyle='#555';
+          b.outliers.forEach(v=>{const py=yS.getPixelForValue(v);c.beginPath();c.arc(x,py,2,0,Math.PI*2);c.fill();});}
+        c.restore();
+      });
+    }};
+    STATE.charts[canvasId]=new Chart(ctx,{type:'bar',data:{labels:boxStats.map(b=>b.g),datasets:[{data:boxStats.map(b=>[b.q1,b.q3]),backgroundColor:boxStats.map(b=>groupColor[b.g]+'cc'),borderColor:boxStats.map(b=>groupColor[b.g]),borderWidth:1,barPercentage:0.5,categoryPercentage:0.8}]},options:{responsive:true,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>{const b=boxStats[c.dataIndex];return[`n=${b.n}`,`min(whisker):${fmt(b.min,4)}`,`Q1:${fmt(b.q1,4)}`,`median:${fmt(b.med,4)}`,`Q3:${fmt(b.q3,4)}`,`max(whisker):${fmt(b.max,4)}`];}}}},scales:{x:{ticks:{maxRotation:45,minRotation:0}},y:{title:{display:true,text:yLabel},min:Math.min(...allV)-pad,max:Math.max(...allV)+pad}}},plugins:[boxPlugin]});
+  } else {
+    const jitter=0.15;
+    const rng=s=>{let h=0;for(const c of s)h=Math.imul(31,h)+c.charCodeAt(0)|0;return((h>>>0)/4294967296-.5)*2*jitter;};
+    const datasets=groupOrder.map((g,gi)=>({label:g,backgroundColor:groupColor[g]+'cc',pointRadius:5,pointHoverRadius:7,data:points.filter(p=>p.group===g).map(p=>({x:gi+rng(p.sample),y:p.val,sample:p.sample}))}));
+    const allY=points.map(p=>p.val).filter(Number.isFinite);
+    const pad=(Math.max(...allY)-Math.min(...allY))*0.1||0.5;
+    STATE.charts[canvasId]=new Chart(ctx,{type:'scatter',data:{datasets},options:{responsive:true,plugins:{legend:{display:groupOrder.length<=8},tooltip:{callbacks:{label:c=>`${c.raw.sample}: ${fmt(c.raw.y,4)}`}}},scales:{x:{type:'linear',min:-0.5,max:groupOrder.length-0.5,ticks:{stepSize:1,callback:v=>Number.isInteger(v)?(groupOrder[v]||''):null},grid:{display:false}},y:{title:{display:true,text:yLabel},min:Math.min(...allY)-pad,max:Math.max(...allY)+pad}}}});
+  }
+}
+function _exprDrawProChart(){
+  const gene=$('exprGene')?.value||'';
+  const nm=$('exprNorm')?.value||'raw';
+  const yLabel=nm==='fold'?'log₂FC vs reference':nm==='ratio'?'Ratio vs reference (linear)':'log₂ intensity';
+  _exprDrawSingle('exprProCanvas','proteomics',r=>pickGene(r['PG.Genes'])===gene,yLabel);
+}
+function _exprDrawPhosChart(){
+  const site=$('exprPhosSite')?.value||'';
+  const nm=$('exprNorm')?.value||'raw';
+  const yLabel=nm==='fold'?'log₂FC vs reference':nm==='ratio'?'Ratio vs reference (linear)':'log₂ intensity';
+  _exprDrawSingle('exprPhosCanvas','phospho',r=>(r['PTM.CollapseKey']||r['PG.Genes']||'')===site,yLabel);
+}
 
 /* ===========================================================
  * QC
@@ -1033,6 +1342,7 @@ $('qcOmics').addEventListener('change',renderQC);
 $('qcPCAscale').addEventListener('change',renderQC);
 {const e=$('qcCVcut');if(e)e.addEventListener('input',renderQC);}
 ['pcaFlipX','pcaFlipY','pcaSwapXY'].forEach(id=>{const e=$(id);if(e)e.addEventListener('change',renderQC);});
+{const e=$('pcaCircleStyle');if(e)e.addEventListener('change',renderQC);}
 ['diffOmics','hmOmics'].forEach(id=>{const e=$(id);if(e)e.addEventListener('change',updateAllSrc);});
 function renderQC(){
   updateAllSrc();
@@ -1289,6 +1599,56 @@ function drawPCA(canvasId,legendId,omics,samples,vals){
   if(!Number.isFinite(yrange)||yrange<1e-10)yrange=1;
   let aspect=xrange/yrange; // wider than tall when aspect>1
   if(!Number.isFinite(aspect))aspect=1;
+  // ── Group circle plugins ──────────────────────────────────────
+  const circStyle=$('pcaCircleStyle')?.value||'ellipse';
+  function _meanArr2(a){return a.reduce((s,x)=>s+x,0)/a.length;}
+  function _cov2(xs,ys){const mx=_meanArr2(xs),my=_meanArr2(ys),n=xs.length;return xs.reduce((s,x,i)=>s+(x-mx)*(ys[i]-my),0)/(n-1||1);}
+  const pcaGroupPlugin={
+    id:'pcaGroupOverlay',
+    beforeDatasetsDraw(chart){
+      if(circStyle==='none')return;
+      const c=chart.ctx,{scales:{x,y}}=chart;
+      groups.forEach((g,gi)=>{
+        const gp=pts.filter(p=>p.group===g);
+        if(gp.length<2)return;
+        const col=COL_PALETTE[gi%COL_PALETTE.length];
+        if(circStyle==='ellipse'){
+          // 95% confidence ellipse via covariance matrix (chi² df=2 = 5.991)
+          const chi2=5.991;
+          const xs=gp.map(p=>p.x),ys=gp.map(p=>p.y);
+          const mx=_meanArr2(xs),my=_meanArr2(ys);
+          const sxx=_cov2(xs,xs),syy=_cov2(ys,ys),sxy=_cov2(xs,ys);
+          const tr=sxx+syy,det=sxx*syy-sxy*sxy;
+          const disc=Math.sqrt(Math.max(0,tr*tr/4-det));
+          const l1=tr/2+disc,l2=tr/2-disc;
+          if(l1<=0||l2<=0)return;
+          const angle=Math.atan2(l1-sxx,sxy)||0;
+          const a=Math.sqrt(chi2*l1),b=Math.sqrt(chi2*l2);
+          const cx=x.getPixelForValue(mx),cy=y.getPixelForValue(my);
+          const sx=x.getPixelForValue(mx+1)-x.getPixelForValue(mx);
+          const sy=y.getPixelForValue(my+1)-y.getPixelForValue(my);
+          c.save();c.beginPath();
+          for(let t=0;t<=2*Math.PI;t+=0.04){
+            const ex=cx+(a*Math.cos(t)*Math.cos(angle)-b*Math.sin(t)*Math.sin(angle))*sx;
+            const ey=cy+(a*Math.cos(t)*Math.sin(angle)+b*Math.sin(t)*Math.cos(angle))*sy;
+            t===0?c.moveTo(ex,ey):c.lineTo(ex,ey);
+          }
+          c.closePath();c.fillStyle=col+'44';c.fill();c.restore();
+        } else {
+          // Min enclosing circle: centroid + max radius
+          const xs=gp.map(p=>p.x),ys=gp.map(p=>p.y);
+          const mx=_meanArr2(xs),my=_meanArr2(ys);
+          const r=Math.max(...gp.map(p=>Math.sqrt((p.x-mx)**2+(p.y-my)**2)));
+          const cx=x.getPixelForValue(mx),cy=y.getPixelForValue(my);
+          const rpx=x.getPixelForValue(mx+r)-cx;
+          c.save();c.beginPath();c.arc(cx,cy,rpx,0,2*Math.PI);
+          c.fillStyle=col+'22';c.fill();
+          c.strokeStyle=col+'bb';c.lineWidth=1.5;c.setLineDash([4,3]);c.stroke();
+          c.restore();
+        }
+      });
+    }
+  };
   STATE.charts[canvasId]=new Chart(ctx,{type:'scatter',data:{datasets},options:{
     responsive:true,maintainAspectRatio:true,aspectRatio:Math.max(0.6,Math.min(2.4,aspect)),
     plugins:{legend:{position:'bottom'},tooltip:{callbacks:{label:c=>`${c.raw.sample}  (${fmt(c.raw.x,3)}, ${fmt(c.raw.y,3)})`}}},
@@ -1296,7 +1656,7 @@ function drawPCA(canvasId,legendId,omics,samples,vals){
       x:{title:{display:true,text:labX},min:xmin-xPad,max:xmax+xPad},
       y:{title:{display:true,text:labY},min:ymin-yPad,max:ymax+yPad}
     }
-  }});
+  },plugins:[pcaGroupPlugin]});
   $(legendId).innerHTML=`Total variance shown: <b>${fmt(var1+var2,3)}%</b> · features used: ${keep.length}/${nF}`;
 }
 
@@ -1554,41 +1914,56 @@ document.querySelectorAll('.subtab[data-gtab]').forEach(t=>t.addEventListener('c
 document.querySelectorAll('.subtab[data-gsrc]').forEach(t=>t.addEventListener('click',()=>{document.querySelectorAll('.subtab[data-gsrc]').forEach(x=>x.classList.remove('active'));t.classList.add('active');$('gsrc-run').style.display=t.dataset.gsrc==='run'?'block':'none';if(t.dataset.gsrc==='run')refreshGseaRunControls();}));
 $('gseaRunOmics').addEventListener('change',refreshGseaRunControls);
 $('gseaRunBtn').addEventListener('click',runGseaFromDep);
-$('loadRemoteGmt').addEventListener('click',()=>loadRemoteGmt(true));
-async function loadRemoteGmt(userTriggered){
-  const st=$('remoteGmtStatus');
-  const btn=$('loadRemoteGmt');
-  if(location.protocol==='file:'){
-    st.textContent='Auto-load disabled on file:// — please upload manually above.';
-    if(userTriggered)alert('Local file:// cannot fetch remote files. Upload the GMT manually.');
-    return;
-  }
-  btn.disabled=true;
-  st.textContent='Fetching '+REMOTE_GMT_URL+' …';
-  try{
-    const r=await fetch(REMOTE_GMT_URL);
-    if(!r.ok)throw new Error('HTTP '+r.status);
-    const ct=(r.headers.get('content-type')||'').toLowerCase();
-    const name=REMOTE_GMT_URL.split('/').pop()||'remote.gmt';
-    if(/\.zip$/i.test(name)||ct.includes('zip')){
-      const blob=await r.blob();await handleZip(new File([blob],name),null);
-    }else{
-      const text=await r.text();
-      if(/^\s*</.test(text))throw new Error('Got HTML instead of GMT — check URL');
-      ingestGmt(name,text);
-    }
-    st.textContent='Loaded '+name;
-  }catch(err){
-    console.error(err);
-    st.textContent='Failed: '+err.message+' — upload manually above.';
-  }finally{btn.disabled=false;}
+document.querySelectorAll('.gmt-sel').forEach(i=>i.addEventListener('change',updateGmtSelSummary));
+updateGmtSelSummary();
+$('gmtLoadSelBtn').addEventListener('click',loadSelectedGmts);
+$('gmtNoneBtn').addEventListener('click',()=>{document.querySelectorAll('.gmt-sel').forEach(i=>i.checked=false);updateGmtSelSummary();});
+function updateGmtSelSummary(){
+  // Cascade: if any parent is checked, disable+uncheck its descendant children
+  document.querySelectorAll('input.gmt-sel-sub').forEach(cb=>{
+    const parentIds=(cb.dataset.parents||'').split(' ').filter(Boolean);
+    const blocked=parentIds.some(pid=>{const p=document.getElementById(pid);return p&&p.checked;});
+    cb.disabled=blocked;
+    if(blocked)cb.checked=false;
+    const lbl=cb.closest('label');
+    if(lbl)lbl.style.opacity=blocked?'0.38':'1';
+  });
+  const allChk=$('gmtSelAll');
+  const isAll=allChk&&allChk.checked;
+  const sum=$('gmtSelSummary');
+  if(!sum)return;
+  if(isAll){sum.textContent='(MSigDB All — 35,361 sets)';return;}
+  const sel=[...document.querySelectorAll('input.gmt-sel:checked')];
+  sum.textContent=sel.length===0?'(none selected)':`(${sel.length} database${sel.length>1?'s':''} selected)`;
 }
-// Auto-attempt remote GMT once when the run panel is first opened on http(s) and no GMT yet
-let _gmtAutoTried=false;
-document.querySelector('.subtab[data-gsrc="run"]').addEventListener('click',()=>{
-  if(_gmtAutoTried||location.protocol==='file:'||STATE.gmt.length)return;
-  _gmtAutoTried=true;loadRemoteGmt(false);
-});
+async function loadSelectedGmts(){
+  const files=[...document.querySelectorAll('.gmt-sel:checked')].map(i=>i.value);
+  if(!files.length){const s=$('gmtLoadStatus');if(s)s.textContent='No databases selected.';return;}
+  const btn=$('gmtLoadSelBtn'),st=$('gmtLoadStatus');
+  btn.disabled=true;
+  let loaded=0,failed=[];
+  for(const fname of files){
+    st.textContent=`Loading ${fname} (${loaded+1}/${files.length})…`;
+    const url='gmt/'+fname;
+    try{
+      const r=await fetch(url);
+      if(!r.ok)throw new Error('HTTP '+r.status);
+      const blob=await r.blob();
+      await handleZip(new File([blob],fname),null);
+      loaded++;
+    }catch(err){
+      console.error('Failed to load '+fname,err);
+      failed.push(fname);
+    }
+  }
+  btn.disabled=false;
+  if(failed.length)st.textContent=`Loaded ${loaded}, failed: ${failed.map(f=>f.split('.')[0]).join(', ')} — try uploading manually.`;
+  else st.textContent=`✓ Loaded ${loaded} database${loaded>1?'s':''}. Ready to run.`;
+  refreshGseaRunControls();
+}
+async function loadRemoteGmt(userTriggered){
+  // kept as no-op stub — replaced by loadSelectedGmts
+}
 function refreshGseaRunControls(){
   const omics=$('gseaRunOmics')?.value||'proteomics';
   const cmps=getComparisons(omics);
@@ -1721,11 +2096,12 @@ function makeGseaWorker(){const blob=new Blob([GSEA_WORKER_SRC],{type:'applicati
 async function runGseaFromDep(){
   const omics=$('gseaRunOmics').value;
   const dep=STATE[omics].dep;
-  if(!dep){alert('Load DEP for '+omics+' first.');return;}
+  const prog=$('gseaProgress');
+  if(!dep){if(prog)prog.textContent='⚠ Load DEP for '+omics+' first.';return;}
   const cmps=[...document.querySelectorAll('#gseaRunCompWrap input:checked')].map(i=>i.value);
-  if(!cmps.length){alert('Select at least one comparison.');return;}
+  if(!cmps.length){if(prog)prog.textContent='⚠ Select at least one comparison.';return;}
   const colls=new Set([...document.querySelectorAll('#gseaRunCollWrap input:checked')].map(i=>i.value));
-  if(!colls.size){alert('Upload GMT and select at least one collection.');return;}
+  if(!colls.size){if(prog)prog.textContent='⚠ Upload GMT and select at least one collection.';return;}
   const metric=$('gseaRunMetric').value;
   const minSize=parseInt($('gseaMinSize').value),maxSize=parseInt($('gseaMaxSize').value),perms=parseInt($('gseaPerms').value);
   // Optional seed for reproducible permutations (mulberry32). Empty string → Math.random.
@@ -1733,7 +2109,7 @@ async function runGseaFromDep(){
   const seed=(seedRaw!==''&&seedRaw!=null&&Number.isFinite(parseInt(seedRaw)))?parseInt(seedRaw):null;
   // build the gene-set list once
   const setsAll=[];STATE.gmt.forEach(g=>g.sets.forEach(s=>{if(colls.has(s.collection))setsAll.push({id:s.id,collection:s.collection,geneArr:Array.from(s.genes),minSize,maxSize});}));
-  if(!setsAll.length){alert('No gene sets matched the selected collections.');return;}
+  if(!setsAll.length){if(prog)prog.textContent='⚠ No gene sets matched the selected collections.';return;}
   // clear previous GSEA results (uploaded CSV + previous runs) so the panel below refreshes
   STATE.proteomics.gsea={};STATE.phospho.gsea={};
   STATE.files=STATE.files.filter(f=>f.type!=='gsea');
@@ -1742,7 +2118,6 @@ async function runGseaFromDep(){
   if(STATE.charts.gseaBar){STATE.charts.gseaBar.destroy();STATE.charts.gseaBar=null;}
   const _hm=$('gseaHm');if(_hm)_hm.innerHTML='';
   const _ls=$('gseaList');if(_ls)_ls.innerHTML='';
-  const prog=$('gseaProgress');
   for(const comp of cmps){
     // build ranked list from DEP rows
     const rs=dep.rows.filter(r=>r.Comparison===comp);
