@@ -53,6 +53,12 @@ button:hover{transform:translateY(-1px);background:var(--panel-2);}
 .btn-primary:hover{background:#14527c;color:#fff;}
 .btn-sm{padding:5px 11px;font-size:.78rem;}
 .btn-ghost{background:transparent;border:1px dashed var(--line);color:var(--muted);}
+.btn-ghost:hover{background:var(--panel-2);color:var(--ink);border-color:var(--brand-mid);transform:translateY(-1px);}
+.btn-ghost:active{transform:translateY(0);background:#e8ecf2;}
+/* label used as file-input button */
+label.btn-sm{display:inline-flex;align-items:center;cursor:pointer;border:1px dashed var(--line);border-radius:9px;background:transparent;color:var(--muted);transition:.15s;user-select:none;}
+label.btn-sm:hover{background:var(--panel-2);color:var(--ink);border-color:var(--brand-mid);transform:translateY(-1px);}
+label.btn-sm:active{transform:translateY(0);background:#e8ecf2;}
 
 select,input[type=text],input[type=number]{height:34px;padding:0 10px;border:1px solid var(--line);border-radius:9px;background:#fff;color:var(--ink);font-size:.83rem;}
 select:focus,input:focus{outline:2px solid var(--brand-mid);outline-offset:1px;}
@@ -429,18 +435,13 @@ body{padding-bottom:24px;}
           </div><!-- end gmtSubSels -->
 
           <div style="margin-top:8px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-            <button class="btn-sm btn-primary" id="gmtLoadSelBtn" type="button" style="font-weight:400;padding:6px 11px;">Load selected databases</button>
-            <button class="btn-sm btn-ghost" type="button" id="gmtNoneBtn" style="font-weight:400;padding:6px 11px;">None</button>
-            <span id="gmtLoadStatus" style="font-size:.78rem;color:var(--muted);"></span>
+              <button class="btn-sm btn-primary" id="gmtLoadSelBtn" type="button" style="font-weight:400;padding:8px 11px;">Load selected databases</button>
+              <button class="btn-sm btn-ghost" type="button" id="gmtNoneBtn" style="font-weight:400;padding:8px 11px;">None</button>
+              <span id="gmtLoadStatus" style="font-size:.78rem;color:var(--muted);display:none;"></span>
+              <label class="btn-sm" style="font-weight:400;padding:8px 11px;margin-left:auto;" title="Upload your own .gmt or .zip file">📂 Upload GMT file(s)<input type="file" id="fileInputGmt" multiple accept=".gmt,.zip" style="display:none;"></label>
           </div>
         </details>
 
-        <!-- Manual upload fallback -->
-        <label class="upload-zone" id="dropZoneGmt" style="margin-bottom:10px;padding:10px;">
-          <span class="icon" style="font-size:1.1rem;">📂</span>
-          <p style="font-size:.8rem;"><strong>Or drag-and-drop</strong> your own <code>.gmt</code> / <code>.zip</code> files here</p>
-          <input type="file" id="fileInputGmt" multiple accept=".gmt,.zip">
-        </label>
         <div id="gmtStatus" class="src" style="margin-bottom:8px;"></div>
         <div class="row" style="margin-bottom:8px;">
           <label class="label" style="margin:0;">Omics:</label>
@@ -470,12 +471,8 @@ body{padding-bottom:24px;}
           only the row with largest |metric| is kept for ranking. Collapsed genes are tagged in the leading edge as
           <code>GENE(×N)</code> where N is the number of original rows.
         </p>
-        <details style="margin-bottom:8px;">
-          <summary style="cursor:pointer;font-size:.82rem;color:var(--brand-mid);user-select:none;">Collections to use <span id="gseaCollSummary" style="color:var(--muted);font-weight:400;"></span></summary>
-          <div class="cb-wrap" id="gseaRunCollWrap" style="min-width:260px;margin-top:6px;"></div>
-        </details>
         <button class="btn-primary btn-sm" id="gseaRunBtn" style="font-weight:400;padding:10px 14px;">Run GSEA</button>
-        <span id="gseaProgress" style="margin-left:12px;font-size:.82rem;color:var(--brand-mid);"></span>
+        <span id="gseaProgress" style="margin-left:12px;font-size:.82rem;"></span>
       </div>
 
       <div class="row" style="margin-bottom:8px;">
@@ -655,7 +652,8 @@ function wireDrop(zoneId,inputId,forceOmics){
 }
 wireDrop('dropZonePro','fileInputPro','proteomics');
 wireDrop('dropZonePhos','fileInputPhos','phospho');
-wireDrop('dropZoneGmt','fileInputGmt',null);
+// fileInputGmt is now a plain <input> button — wire change event directly
+{const fi=document.getElementById('fileInputGmt');if(fi)fi.addEventListener('change',e=>handleFiles(e.target.files,null));}
 function handleFiles(fs,forceOmics){[...fs].forEach(f=>{
   if(/\.zip$/i.test(f.name)){handleZip(f,forceOmics);return;}
   if(/\.gmt$/i.test(f.name)){handleGmt(f);return;}
@@ -786,27 +784,36 @@ function drawReadinessTable(){
   const bad='<span style="color:var(--err);font-weight:700;">✗</span>';
   function cell(flag,detail){return `<span style="display:inline-flex;align-items:center;gap:6px;line-height:1.4;">${flag?ok:bad}<span style="color:var(--muted);font-size:.78rem;">${detail||''}</span></span>`;}
   const perOmics=[
-    ['QC',
+    // ── QC ──────────────────────────────────────────────────────
+    ['QC · Sample distribution, CV, correlation, PCA',
       cell(!!p.matrix,  p.matrix  ? p.matrix.name  : 'need matrix CSV'),
       cell(!!ph.matrix, ph.matrix ? ph.matrix.name : 'need matrix CSV')],
-    ['Differential analysis',
+    // ── Expression ──────────────────────────────────────────────
+    ['Expression · Single-protein bar / box / dot',
+      cell(!!p.matrix,  p.matrix  ? 'matrix ✓' : 'need matrix CSV'),
+      cell(!!ph.matrix, ph.matrix ? 'matrix ✓' : 'need matrix CSV')],
+    // ── Differential ────────────────────────────────────────────
+    ['Differential · Volcano + table',
       cell(!!p.dep,  p.dep  ? `${p.dep.name} · ${cmpsP.length} comparisons`  : 'need DEP CSV'),
       cell(!!ph.dep, ph.dep ? `${ph.dep.name} · ${cmpsPh.length} comparisons`: 'need DEP CSV')],
-    ['Heatmap (Top by |Log2FC|)',
-      cell(!!p.matrix&&!!p.dep,   'matrix + DEP'),
-      cell(!!ph.matrix&&!!ph.dep, 'matrix + DEP')],
-    ['Heatmap (Custom genes)',
-      cell(!!p.matrix,  'matrix only'),
-      cell(!!ph.matrix, 'matrix only')],
-    ['GSEA — from uploaded CSV',
-      cell(Object.keys(p.gsea).length>0,  `${Object.keys(p.gsea).length} GSEA file(s)`),
-      cell(Object.keys(ph.gsea).length>0, `${Object.keys(ph.gsea).length} GSEA file(s)`)],
-    ['GSEA — run from DEP',
-      cell(!!p.dep,  p.dep ?'proteomics DEP ✓':'need proteomics DEP'),
-      cell(!!ph.dep, ph.dep?'phospho DEP ✓'   :'need phospho DEP')],
-    ['Cross-omics scatter',
-      cell(!!p.dep,  p.dep ?'proteomics DEP ✓':'need proteomics DEP'),
-      cell(!!ph.dep, ph.dep?'phospho DEP ✓'   :'need phospho DEP')],
+    // ── Heatmap ─────────────────────────────────────────────────
+    ['Heatmap · Top |Log2FC| proteins',
+      cell(!!p.matrix&&!!p.dep,   p.matrix&&p.dep   ? 'matrix + DEP ✓' : 'need matrix + DEP'),
+      cell(!!ph.matrix&&!!ph.dep, ph.matrix&&ph.dep ? 'matrix + DEP ✓' : 'need matrix + DEP')],
+    ['Heatmap · Custom gene list',
+      cell(!!p.matrix,  p.matrix  ? 'matrix ✓' : 'need matrix CSV'),
+      cell(!!ph.matrix, ph.matrix ? 'matrix ✓' : 'need matrix CSV')],
+    // ── GSEA ────────────────────────────────────────────────────
+    ['GSEA · From uploaded GSEA CSV',
+      cell(Object.keys(p.gsea).length>0,  Object.keys(p.gsea).length>0  ? `${Object.keys(p.gsea).length} file(s) ✓` : 'need GSEA CSV'),
+      cell(Object.keys(ph.gsea).length>0, Object.keys(ph.gsea).length>0 ? `${Object.keys(ph.gsea).length} file(s) ✓` : 'need GSEA CSV')],
+    ['GSEA · Run in browser from DEP + GMT',
+      cell(!!p.dep&&gmtN>0,  p.dep&&gmtN>0   ? `DEP ✓ · ${gmtN} sets loaded` : !p.dep  ? 'need DEP CSV' : 'need GMT'),
+      cell(!!ph.dep&&gmtN>0, ph.dep&&gmtN>0  ? `DEP ✓ · ${gmtN} sets loaded` : !ph.dep ? 'need DEP CSV' : 'need GMT')],
+    // ── Cross-omics ──────────────────────────────────────────────
+    ['Cross-omics · Proteomics vs Phospho scatter',
+      cell(!!p.dep,  p.dep  ? 'proteomics DEP ✓' : 'need proteomics DEP'),
+      cell(!!ph.dep, ph.dep ? 'phospho DEP ✓'    : 'need phospho DEP')],
   ];
 
   // uploaded files split by omics + unknown
@@ -1938,12 +1945,20 @@ function updateGmtSelSummary(){
 }
 async function loadSelectedGmts(){
   const files=[...document.querySelectorAll('.gmt-sel:checked')].map(i=>i.value);
-  if(!files.length){const s=$('gmtLoadStatus');if(s)s.textContent='No databases selected.';return;}
-  const btn=$('gmtLoadSelBtn'),st=$('gmtLoadStatus');
+  const st=$('gmtLoadStatus');
+  function showStatus(msg,isErr){
+    if(!st)return;
+    st.textContent=msg;
+    st.style.display=msg?'block':'none';
+    st.style.color=isErr?'var(--err)':msg.startsWith('✓')?'var(--ok)':'var(--muted)';
+    st.style.fontWeight='400';
+  }
+  if(!files.length){showStatus('No databases selected.',false);return;}
+  const btn=$('gmtLoadSelBtn');
   btn.disabled=true;
   let loaded=0,failed=[];
   for(const fname of files){
-    st.textContent=`Loading ${fname} (${loaded+1}/${files.length})…`;
+    showStatus(`Loading ${fname} (${loaded+1}/${files.length})…`,false);
     const url='gmt/'+fname;
     try{
       const r=await fetch(url);
@@ -1953,12 +1968,12 @@ async function loadSelectedGmts(){
       loaded++;
     }catch(err){
       console.error('Failed to load '+fname,err);
-      failed.push(fname);
+      failed.push(fname.split('.')[0]);
     }
   }
   btn.disabled=false;
-  if(failed.length)st.textContent=`Loaded ${loaded}, failed: ${failed.map(f=>f.split('.')[0]).join(', ')} — try uploading manually.`;
-  else st.textContent=`✓ Loaded ${loaded} database${loaded>1?'s':''}. Ready to run.`;
+  if(failed.length)showStatus(`Loaded ${loaded}, failed: ${failed.join(', ')}`,true);
+  else showStatus(`✓ Loaded ${loaded} database${loaded>1?'s':''}. Ready to run.`,false);
   refreshGseaRunControls();
 }
 async function loadRemoteGmt(userTriggered){
@@ -1970,19 +1985,20 @@ function refreshGseaRunControls(){
   const cw=$('gseaRunCompWrap');if(cw)cw.innerHTML=cmps.map((c,i)=>`<label class="cb-item"><input type="checkbox" value="${c}" ${i===0?'checked':''}> ${c}</label>`).join('')||'<span style="color:var(--muted);font-size:.8rem;">no DEP loaded</span>';
   const collMap={};STATE.gmt.forEach(g=>g.sets.forEach(s=>{collMap[s.collection]=(collMap[s.collection]||0)+1;}));
   const colls=Object.keys(collMap).sort();
-  const ccw=$('gseaRunCollWrap');if(ccw)ccw.innerHTML=colls.length?colls.map(c=>`<label class="cb-item"><input type="checkbox" value="${c}" checked> ${c} <span style="color:var(--muted);font-size:.7rem;">(${collMap[c]})</span></label>`).join(''):'<span style="color:var(--muted);font-size:.8rem;">no GMT loaded</span>';
-  if(ccw)ccw.querySelectorAll('input').forEach(i=>i.addEventListener('change',updateGseaCollSummary));
-  updateGseaCollSummary();
+
   const totalSets=STATE.gmt.reduce((s,g)=>s+g.sets.length,0);
-  const gs=$('gmtStatus');if(gs)gs.innerHTML=STATE.gmt.length?`<b>GMT files:</b> ${STATE.gmt.length} · <b>Total sets:</b> ${totalSets} · <b>Collections:</b> ${colls.length}`:'<i>No GMT loaded — upload .gmt files in tab 1.</i>';
+  const gs=$('gmtStatus');
+  if(gs){
+    if(!STATE.gmt.length){
+      gs.innerHTML='<i style="font-size:.78rem;color:var(--muted);">No GMT loaded.</i>';
+    } else {
+      gs.innerHTML=`<span style="font-size:.78rem;color:var(--muted);margin-right:6px;">GMT files: ${STATE.gmt.length} · Total sets: ${totalSets} · Collections: ${colls.length}</span>`
+        +STATE.gmt.map((g,i)=>`<span class="file-tag" style="background:#f1e9fb;border-color:#c8b6e3;color:#553a8a;margin:2px 4px 2px 0;display:inline-block;font-size:.75rem;">${esc(g.name)} <span style="color:#888;font-size:.7rem;">(${g.sets.length})</span> <span class="x" data-gmt="${i}" style="cursor:pointer;opacity:.6;margin-left:2px;">✕</span></span>`).join('');
+      gs.querySelectorAll('.x[data-gmt]').forEach(x=>x.addEventListener('click',()=>{STATE.gmt.splice(+x.dataset.gmt,1);drawFileList();refreshGseaRunControls();}));
+    }
+  }
 }
-function updateGseaCollSummary(){
-  const sum=$('gseaCollSummary');if(!sum)return;
-  const all=[...document.querySelectorAll('#gseaRunCollWrap input')];
-  const sel=all.filter(i=>i.checked);
-  if(!all.length){sum.textContent='(no GMT loaded)';return;}
-  sum.textContent=sel.length===all.length?`(all ${all.length} selected)`:`(${sel.length}/${all.length} selected: ${sel.map(i=>i.value).join(', ')})`;
-}
+
 
 /* GSEA worker (inline). Implements weighted KS (Subramanian 2005). */
 const GSEA_WORKER_SRC=`
@@ -2097,11 +2113,13 @@ async function runGseaFromDep(){
   const omics=$('gseaRunOmics').value;
   const dep=STATE[omics].dep;
   const prog=$('gseaProgress');
-  if(!dep){if(prog)prog.textContent='⚠ Load DEP for '+omics+' first.';return;}
+  function progWarn(msg){if(prog){prog.textContent=msg;prog.style.color='var(--err)';}}
+  function progInfo(msg){if(prog){prog.textContent=msg;prog.style.color='var(--brand-mid)';}}
+  if(!dep){progWarn('Load DEP for '+omics+' first.');return;}
   const cmps=[...document.querySelectorAll('#gseaRunCompWrap input:checked')].map(i=>i.value);
-  if(!cmps.length){if(prog)prog.textContent='⚠ Select at least one comparison.';return;}
-  const colls=new Set([...document.querySelectorAll('#gseaRunCollWrap input:checked')].map(i=>i.value));
-  if(!colls.size){if(prog)prog.textContent='⚠ Upload GMT and select at least one collection.';return;}
+  if(!cmps.length){progWarn('Select at least one comparison.');return;}
+  const colls=new Set(STATE.gmt.flatMap(g=>g.sets.map(s=>s.collection)));
+  if(!colls.size){progWarn('Load GMT databases first.');return;}
   const metric=$('gseaRunMetric').value;
   const minSize=parseInt($('gseaMinSize').value),maxSize=parseInt($('gseaMaxSize').value),perms=parseInt($('gseaPerms').value);
   // Optional seed for reproducible permutations (mulberry32). Empty string → Math.random.
@@ -2109,7 +2127,7 @@ async function runGseaFromDep(){
   const seed=(seedRaw!==''&&seedRaw!=null&&Number.isFinite(parseInt(seedRaw)))?parseInt(seedRaw):null;
   // build the gene-set list once
   const setsAll=[];STATE.gmt.forEach(g=>g.sets.forEach(s=>{if(colls.has(s.collection))setsAll.push({id:s.id,collection:s.collection,geneArr:Array.from(s.genes),minSize,maxSize});}));
-  if(!setsAll.length){if(prog)prog.textContent='⚠ No gene sets matched the selected collections.';return;}
+  if(!setsAll.length){progWarn('No gene sets matched the selected collections.');return;}
   // clear previous GSEA results (uploaded CSV + previous runs) so the panel below refreshes
   STATE.proteomics.gsea={};STATE.phospho.gsea={};
   STATE.files=STATE.files.filter(f=>f.type!=='gsea');
@@ -2140,11 +2158,11 @@ async function runGseaFromDep(){
     arr.sort((a,b)=>b.m-a.m);
     const rankedGenes=arr.map(x=>x.g),scores=arr.map(x=>x.m);
     const collapseCount=new Map(arr.map(x=>[x.g,x.n]));
-    prog.textContent=`[${comp}] running on ${rankedGenes.length} ranked genes × ${setsAll.length} sets...`;
+    progInfo(`[${comp}] running on ${rankedGenes.length} ranked genes × ${setsAll.length} sets...`);
     const res=await new Promise(resolve=>{
       const w=makeGseaWorker();
       w.onmessage=ev=>{
-        if(ev.data.type==='progress'){prog.textContent=`[${comp}] ${ev.data.done}/${ev.data.total} sets...`;}
+        if(ev.data.type==='progress'){progInfo(`[${comp}] ${ev.data.done}/${ev.data.total} sets...`);}
         else if(ev.data.type==='done'){w.terminate();resolve(ev.data.results);}
       };
       // Pass a per-comparison seed offset so different comparisons aren't bit-identical
@@ -2163,7 +2181,7 @@ async function runGseaFromDep(){
     rows.sort((a,b)=>(a['p.adj']||1)-(b['p.adj']||1));
     STATE[omics].gsea[comp]={name:`GSEA(run) ${omics} · ${comp}`,rows,cols:Object.keys(rows[0]||{}),type:'gsea',omics};
   }
-  prog.textContent=`Done. Use the panel below to view results.`;
+  progInfo('Done. Use the panel below to view results.');
   refreshComparisonControls();renderGsea();
 }
 
