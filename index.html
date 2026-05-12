@@ -1929,24 +1929,15 @@ updateGmtSelSummary();
 $('gmtLoadSelBtn').addEventListener('click',loadSelectedGmts);
 $('gmtNoneBtn').addEventListener('click',()=>{document.querySelectorAll('.gmt-sel').forEach(i=>i.checked=false);STATE.gmt.length=0;updateGmtSelSummary();drawFileList();refreshGseaRunControls();showGmtLoadStatus('');});
 function updateGmtSelSummary(){
-  // Cascade: if any parent is checked, disable+uncheck its descendant children
-  // and remove them from STATE.gmt if already loaded
+  // Cascade: if any parent is checked, disable+uncheck its descendant children (UI only)
   document.querySelectorAll('input.gmt-sel-sub').forEach(cb=>{
     const parentIds=(cb.dataset.parents||'').split(' ').filter(Boolean);
     const blocked=parentIds.some(pid=>{const p=document.getElementById(pid);return p&&p.checked;});
     cb.disabled=blocked;
-    if(blocked&&cb.checked){
-      cb.checked=false;
-      const key=cb.value.replace(/\.zip$/i,'').replace(/\.gmt$/i,'');
-      const idx=STATE.gmt.findIndex(g=>g.name.replace(/\.gmt$/i,'')===key);
-      if(idx>=0){STATE.gmt.splice(idx,1);}
-    }
+    if(blocked)cb.checked=false;
     const lbl=cb.closest('label');
     if(lbl)lbl.style.opacity=blocked?'0.38':'1';
   });
-  if(STATE.gmt.length===0||document.querySelectorAll('input.gmt-sel-sub:disabled:checked').length===0){
-    // refresh only if something was removed
-  }
   const allChk=$('gmtSelAll');
   const isAll=allChk&&allChk.checked;
   const sum=$('gmtSelSummary');
@@ -1954,7 +1945,6 @@ function updateGmtSelSummary(){
   if(isAll){sum.textContent='(MSigDB All — 35,361 sets)';return;}
   const sel=[...document.querySelectorAll('input.gmt-sel:checked')];
   sum.textContent=sel.length===0?'(none selected)':`(${sel.length} database${sel.length>1?'s':''} selected)`;
-  drawFileList();refreshGseaRunControls();
 }
 function showGmtLoadStatus(msg,isErr){
   const st=$('gmtLoadStatus');
@@ -1964,12 +1954,20 @@ function showGmtLoadStatus(msg,isErr){
   st.style.color=isErr?'var(--err)':'var(--muted)';
 }
 async function loadSelectedGmts(){
+  const checkedKeys=new Set(
+    [...document.querySelectorAll('.gmt-sel:checked')].map(i=>i.value.replace(/\.zip$/i,'').replace(/\.gmt$/i,''))
+  );
+  // Remove from STATE.gmt anything no longer checked
+  for(let i=STATE.gmt.length-1;i>=0;i--){
+    const k=STATE.gmt[i].name.replace(/\.gmt$/i,'');
+    if(!checkedKeys.has(k))STATE.gmt.splice(i,1);
+  }
   const files=[...document.querySelectorAll('.gmt-sel:checked')].map(i=>i.value);
-  if(!files.length){showGmtLoadStatus('No databases selected.',false);return;}
+  if(!files.length){drawFileList();refreshGseaRunControls();showGmtLoadStatus('');return;}
   const alreadyLoaded=new Set(STATE.gmt.map(g=>g.name.replace(/\.gmt$/i,'')));
   const toLoad=files.filter(f=>!alreadyLoaded.has(f.replace(/\.zip$/i,'').replace(/\.gmt$/i,'')));
   const skipped=files.length-toLoad.length;
-  if(!toLoad.length){showGmtLoadStatus(`Already loaded (${skipped} skipped).`,false);return;}
+  if(!toLoad.length){drawFileList();refreshGseaRunControls();showGmtLoadStatus(`Already loaded (${skipped} skipped).`,false);return;}
   const btn=$('gmtLoadSelBtn');
   btn.disabled=true;
   let loaded=0,failed=[];
@@ -1988,7 +1986,7 @@ async function loadSelectedGmts(){
   }
   btn.disabled=false;
   if(failed.length)showGmtLoadStatus(`Loaded ${loaded}, failed: ${failed.join(', ')}`,true);
-  else showGmtLoadStatus(`✓ Loaded ${loaded}${skipped?` (${skipped} already loaded)`:''}.`,false);
+  else showGmtLoadStatus(`✓ Loaded ${loaded}${skipped?` (${skipped} already loaded)`:''}. Ready to run.`,false);
   refreshGseaRunControls();
 }
 function refreshGseaRunControls(){
