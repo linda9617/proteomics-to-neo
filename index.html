@@ -1954,10 +1954,14 @@ async function loadSelectedGmts(){
     st.style.fontWeight='400';
   }
   if(!files.length){showStatus('No databases selected.',false);return;}
+  const alreadyLoaded=new Set(STATE.gmt.map(g=>g.name));
+  const toLoad=files.filter(f=>!alreadyLoaded.has(f.replace(/\.zip$/i,'').replace(/\.gmt$/i,'')));
+  const skipped=files.length-toLoad.length;
+  if(!toLoad.length){showStatus(`✓ Already loaded (${skipped} database${skipped>1?'s':''} skipped).`,false);return;}
   const btn=$('gmtLoadSelBtn');
   btn.disabled=true;
   let loaded=0,failed=[];
-  for(const fname of files){
+  for(const fname of toLoad){
     showStatus(`Loading ${fname} (${loaded+1}/${files.length})…`,false);
     const url='gmt/'+fname;
     try{
@@ -1972,8 +1976,8 @@ async function loadSelectedGmts(){
     }
   }
   btn.disabled=false;
-  if(failed.length)showStatus(`Loaded ${loaded}, failed: ${failed.join(', ')}`,true);
-  else showStatus(`✓ Loaded ${loaded} database${loaded>1?'s':''}. Ready to run.`,false);
+  if(failed.length)showStatus(`Loaded ${loaded}, failed: ${failed.join(', ')}${skipped?`, skipped ${skipped} already loaded`:''}`,true);
+  else showStatus(`✓ Loaded ${loaded} database${loaded>1?'s':''}${skipped?` (${skipped} already loaded, skipped)`:''}. Ready to run.`,false);
   refreshGseaRunControls();
 }
 async function loadRemoteGmt(userTriggered){
