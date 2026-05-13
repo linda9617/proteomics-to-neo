@@ -787,34 +787,25 @@ function drawReadinessTable(){
   const bad='<span style="color:var(--err);font-weight:700;">✗</span>';
   function cell(flag,detail){return `<span style="display:inline-flex;align-items:center;gap:6px;line-height:1.4;">${flag?ok:bad}<span style="color:var(--muted);font-size:.78rem;">${detail||''}</span></span>`;}
   const perOmics=[
-    // ── QC ──────────────────────────────────────────────────────
-    ['QC · Sample distribution, CV, correlation, PCA',
+    ['QC',
       cell(!!p.matrix,  p.matrix  ? p.matrix.name  : 'need matrix CSV'),
       cell(!!ph.matrix, ph.matrix ? ph.matrix.name : 'need matrix CSV')],
-    // ── Expression ──────────────────────────────────────────────
-    ['Expression · Single-protein bar / box / dot',
+    ['Expression',
       cell(!!p.matrix,  p.matrix  ? 'matrix ✓' : 'need matrix CSV'),
       cell(!!ph.matrix, ph.matrix ? 'matrix ✓' : 'need matrix CSV')],
-    // ── Differential ────────────────────────────────────────────
-    ['Differential · Volcano + table',
+    ['Differential',
       cell(!!p.dep,  p.dep  ? `${p.dep.name} · ${cmpsP.length} comparisons`  : 'need DEP CSV'),
       cell(!!ph.dep, ph.dep ? `${ph.dep.name} · ${cmpsPh.length} comparisons`: 'need DEP CSV')],
-    // ── Heatmap ─────────────────────────────────────────────────
-    ['Heatmap · Top |Log2FC| proteins',
+    ['Heatmap',
       cell(!!p.matrix&&!!p.dep,   p.matrix&&p.dep   ? 'matrix + DEP ✓' : 'need matrix + DEP'),
       cell(!!ph.matrix&&!!ph.dep, ph.matrix&&ph.dep ? 'matrix + DEP ✓' : 'need matrix + DEP')],
-    ['Heatmap · Custom gene list',
-      cell(!!p.matrix,  p.matrix  ? 'matrix ✓' : 'need matrix CSV'),
-      cell(!!ph.matrix, ph.matrix ? 'matrix ✓' : 'need matrix CSV')],
-    // ── GSEA ────────────────────────────────────────────────────
-    ['GSEA · From uploaded GSEA CSV',
+    ['GSEA (ready)',
       cell(Object.keys(p.gsea).length>0,  Object.keys(p.gsea).length>0  ? `${Object.keys(p.gsea).length} file(s) ✓` : 'need GSEA CSV'),
       cell(Object.keys(ph.gsea).length>0, Object.keys(ph.gsea).length>0 ? `${Object.keys(ph.gsea).length} file(s) ✓` : 'need GSEA CSV')],
-    ['GSEA · Run in browser from DEP + GMT',
+    ['GSEA (re-run)',
       cell(!!p.dep&&gmtN>0,  p.dep&&gmtN>0   ? `DEP ✓ · ${gmtN} sets loaded` : !p.dep  ? 'need DEP CSV' : 'need GMT'),
       cell(!!ph.dep&&gmtN>0, ph.dep&&gmtN>0  ? `DEP ✓ · ${gmtN} sets loaded` : !ph.dep ? 'need DEP CSV' : 'need GMT')],
-    // ── Cross-omics ──────────────────────────────────────────────
-    ['Cross-omics · Proteomics vs Phospho scatter',
+    ['Cross-omics',
       cell(!!p.dep,  p.dep  ? 'proteomics DEP ✓' : 'need proteomics DEP'),
       cell(!!ph.dep, ph.dep ? 'phospho DEP ✓'    : 'need phospho DEP')],
   ];
