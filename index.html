@@ -10,6 +10,7 @@
 <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -133,7 +134,7 @@ body{padding-bottom:24px;}
 </head>
 <body>
 <header>
-  <h1>Proteomics-to-Neo v1.2</h1>
+  <h1>Proteomics-to-Neo v1.3</h1>
   <p>Proteomics &amp; phosphoproteomics explorer · differential, GSEA, cross-omics regulation</p>
   <p class="author">By ILYH</p>
 </header>
@@ -160,13 +161,13 @@ body{padding-bottom:24px;}
           <span class="icon">🧬</span>
           <p><strong>Proteomics</strong> — drop CSV / ZIP here</p>
           <p style="font-size:.75rem;margin-top:4px;">Matrix, DEP, GSEA results</p>
-          <input type="file" id="fileInputPro" multiple accept=".csv,.zip,text/csv,application/zip">
+          <input type="file" id="fileInputPro" multiple accept=".csv,.xlsx,.xls,.zip,text/csv,application/zip">
         </label>
         <label class="upload-zone" id="dropZonePhos" data-omics="phospho">
           <span class="icon">🧪</span>
           <p><strong>Phospho-proteomics</strong> — drop CSV / ZIP here</p>
           <p style="font-size:.75rem;margin-top:4px;">Phospho matrix, DE phospho-site, GSEA results</p>
-          <input type="file" id="fileInputPhos" multiple accept=".csv,.zip,text/csv,application/zip">
+          <input type="file" id="fileInputPhos" multiple accept=".csv,.xlsx,.xls,.zip,text/csv,application/zip">
         </label>
       </div>
       <div id="fileList" style="display:none;"></div>
@@ -280,6 +281,12 @@ body{padding-bottom:24px;}
           <select id="thPtype"><option value="adj.P.Val">p.adj</option><option value="P.Value">p-val</option></select>
         </label>
         <label>≤ <input type="number" id="thP" value="0.05" step="0.01" min="0" max="1"></label>
+        <label style="margin-left:6px;">Multi-comp:
+          <select id="diffSetMode">
+            <option value="overlay">Overlay</option>
+            <option value="intersection">Intersection (sig in all)</option>
+          </select>
+        </label>
         <label id="diffPairedRow" style="display:none;font-size:.82rem;color:var(--ink);display:none;align-items:center;gap:6px;cursor:pointer;">
           <input type="checkbox" id="diffPairedOnly"> Hide unpaired sites
         </label>
@@ -287,10 +294,18 @@ body{padding-bottom:24px;}
       <div id="diffCorrWarn" class="warn-box" style="display:none;"></div>
       <div id="diffPColWarn" class="warn-box" style="display:none;"></div>
       <div class="stat-grid" id="diffStats"></div>
+      <div class="row" style="margin-top:14px;margin-bottom:14px;flex-wrap:wrap;gap:6px;">
+        <span class="label" style="margin:0;">Highlight genes:</span>
+        <input type="text" id="diffHighlightInput" list="diffHighlightList" placeholder="Type gene…" style="width:160px;height:28px;font-size:.8rem;">
+        <datalist id="diffHighlightList"></datalist>
+        <button id="diffHighlightAdd" class="btn-sm" style="height:28px;padding:3px 10px;" title="Add gene">＋</button>
+        <button id="diffHighlightClear" class="btn-sm btn-ghost" style="height:28px;padding:3px 10px;">Clear</button>
+        <div id="diffHighlightTags" style="display:flex;flex-wrap:wrap;gap:3px;"></div>
+      </div>
       <div class="grid-2" style="margin-bottom:14px;">
         <div class="chart-box">
           <h3>Volcano (log2FC vs −log10 P)</h3>
-          <canvas id="diffVolcano" height="260"></canvas>
+          <canvas id="diffVolcano" height="260">
           <div class="legend-row" id="diffVolLegend"></div>
         </div>
         <div class="chart-box">
@@ -489,15 +504,18 @@ body{padding-bottom:24px;}
         <input type="number" id="gseaTopN" value="20" min="5" max="100" style="width:80px;">
         <button class="btn-sm" id="gseaExport" style="margin-left:6px;padding:5px 11px;">Export CSV</button>
       </div>
+      <div class="row" style="margin-bottom:8px;">
+        <label class="label" style="margin:0;">Search:</label><input type="text" id="gseaSearch" placeholder="Search pathway…" style="width:180px;">
+      </div>
       <div class="subtab-row">
         <div class="subtab active" data-gtab="bar">NES bar &amp; Heatmap</div>
         <div class="subtab" data-gtab="bubble">Bubble plot</div>
         <div class="subtab" data-gtab="list">Pathway list</div>
       </div>
       <div id="gtab-bar" class="gtab-pane">
-        <div style="display:flex;flex-wrap:wrap;gap:18px;align-items:flex-start;justify-content:center;padding:8px 4px;">
-          <div class="chart-box" id="gseaBarBox" style="flex:0 0 auto;overflow:hidden;padding:16px 20px;"><canvas id="gseaBar"></canvas></div>
-          <div class="chart-box" style="flex:0 0 auto;overflow:hidden;padding:16px 20px;"><div class="heatmap-wrap" id="gseaHm" style="overflow:hidden;max-width:none;"></div></div>
+        <div style="display:flex;flex-direction:column;gap:18px;padding:8px 4px;align-items:center;">
+          <div class="chart-box" id="gseaBarBox" style="overflow:visible;padding:16px 20px;width:fit-content;"><canvas id="gseaBar" style="display:none;"></canvas><div id="gseaBarDom"></div></div>
+          <div class="chart-box" style="overflow:visible;padding:16px 20px;width:fit-content;"><div class="heatmap-wrap" id="gseaHm" style="overflow:visible;max-width:none;"></div></div>
         </div>
       </div>
       <div id="gtab-bubble" class="gtab-pane" style="display:none;">
@@ -575,6 +593,8 @@ const STATE = {
   charts: {}
 };
 const COL_PALETTE = ['#1a4f86','#c0392b','#1f8a4a','#c98a00','#7d3c98','#117a8b','#d35400','#5d3a14','#2c3e50'];
+// GSEA comparison palette — Prism Flower inspired (avoids red/blue reserved for NES direction)
+const GSEA_PALETTE=['#e05c73','#f0883e','#f5c518','#4caf85','#2196a8','#8e44ad','#e91e8c','#3f8ebd','#77b255'];
 
 /* ===========================================================
  * UTILITIES
@@ -660,8 +680,26 @@ wireDrop('dropZonePhos','fileInputPhos','phospho');
 function handleFiles(fs,forceOmics){[...fs].forEach(f=>{
   if(/\.zip$/i.test(f.name)){handleZip(f,forceOmics);return;}
   if(/\.gmt$/i.test(f.name)){handleGmt(f);return;}
+  if(/\.xlsx?$/i.test(f.name)){handleXlsx(f,forceOmics);return;}
   parseCsvFile(f.name,f,forceOmics);
 });}
+async function handleXlsx(file,forceOmics){
+  if(typeof XLSX==='undefined'){alert('SheetJS failed to load (offline?). Cannot read xlsx.');return;}
+  try{
+    const buf=await file.arrayBuffer();
+    const wb=XLSX.read(buf,{type:'array',raw:false});
+    const multi=wb.SheetNames.length>1;
+    for(const sname of wb.SheetNames){
+      const ws=wb.Sheets[sname];
+      const rows=XLSX.utils.sheet_to_json(ws,{defval:''});
+      if(!rows.length)continue;
+      const cols=Object.keys(rows[0]);
+      // For multi-sheet xlsx use sheet name as identifier; single-sheet uses filename
+      const effectiveName=multi?sname:file.name;
+      addFile(effectiveName,rows,cols,forceOmics);
+    }
+  }catch(err){console.error(err);alert('Failed to read xlsx: '+err.message);}
+}
 function parseCsvFile(name,fileOrText,forceOmics){
   const opts={header:true,dynamicTyping:false,skipEmptyLines:true,complete:res=>{addFile(name,res.data,res.meta.fields||[],forceOmics);}};
   if(typeof fileOrText==='string')Papa.parse(fileOrText,opts);else Papa.parse(fileOrText,opts);
@@ -705,10 +743,10 @@ function classifyFile(name,cols){
   const cset=new Set(cols);
   const isPhospho=cset.has('PTM.CollapseKey')||/phos/i.test(name);
   // DEP / GSEA first (they have distinctive analytic columns)
-  if(cset.has('logFC')&&cset.has('Comparison')){
+  if((cset.has('logFC')||cset.has('log2FC')||cset.has('log2FoldChange')||cset.has('LFC'))&&cset.has('Comparison')){
     return {type:'dep',omics:isPhospho?'phospho':'proteomics'};
   }
-  if(cset.has('NES')&&(cset.has('p.adjust')||cset.has('p.adj'))){
+  if(cset.has('NES')&&(cset.has('p.adjust')||cset.has('p.adj')||cset.has('padj'))){
     return {type:'gsea',omics:isPhospho?'phospho':'proteomics'};
   }
   // Matrix: explicit markers OR sample-like replicate columns (e.g. siNTC_1)
@@ -735,16 +773,22 @@ function addFile(name,rows,cols,forceOmics){
   }
   else if(cls.type==='dep'){
     // Normalize column-name aliases so DEP files with variant headers still work.
-    // Canonical names used downstream: adj.P.Val, P.Value, logFC, Comparison, t.
+    // Canonical names used downstream: adj.P.Val, P.Value, logFC, Comparison, t, PG.Genes.
     const aliasMap={
-      'adj.P.Val': ['p.adj','p.adjust','padj','adj.P.Value','adjpval','adj_p','p_adj','FDR','q.value','qvalue','qval'],
-      'P.Value':   ['p.value','pvalue','p_value','p-val','p.val','pval'],
+      'adj.P.Val': ['t_adj_p_value','limma_adj_p_value','p.adj','p.adjust','padj','adj.P.Value','adjpval','adj_p','p_adj','FDR','q.value','qvalue','qval'],
+      'P.Value':   ['t_p_value','limma_p_value','p.value','pvalue','p_value','p-val','p.val','pval'],
       'logFC':     ['log2FC','log2fc','log2FoldChange','LFC','log2_fc','log2_FC','Log2FC'],
-      'Comparison':['comparison','contrast','Contrast','Comp','comp']
+      'Comparison':['comparison','contrast','Contrast','Comp','comp'],
+      'PG.Genes':  ['Genes','Gene','gene','GeneName','gene_name','GeneSymbol','gene_symbol','hgnc_symbol']
     };
     const lcMap={};
     Object.keys(aliasMap).forEach(canon=>{aliasMap[canon].forEach(a=>{lcMap[a.toLowerCase()]=canon;});lcMap[canon.toLowerCase()]=canon;});
     f.rows.forEach(r=>{
+      // For files with both t-test and limma p-values, prefer t-test.
+      if(r['t_adj_p_value']!=null&&r['adj.P.Val']==null) r['adj.P.Val']=r['t_adj_p_value'];
+      else if(r['limma_adj_p_value']!=null&&r['adj.P.Val']==null) r['adj.P.Val']=r['limma_adj_p_value'];
+      if(r['t_p_value']!=null&&r['P.Value']==null) r['P.Value']=r['t_p_value'];
+      else if(r['limma_p_value']!=null&&r['P.Value']==null) r['P.Value']=r['limma_p_value'];
       Object.keys(r).forEach(k=>{
         const canon=lcMap[k.toLowerCase()];
         if(canon&&canon!==k&&(r[canon]==null||r[canon]===''))r[canon]=r[k];
@@ -754,11 +798,32 @@ function addFile(name,rows,cols,forceOmics){
     STATE[cls.omics].dep=f;
   }
   else if(cls.type==='gsea'){
-    // extract comparison from filename: "X vs Y_GSEA_results.csv" -> "X vs Y"
-    let comp=name.replace(/_GSEA_results\.csv$/i,'').replace(/\.csv$/i,'');
-    // normalize column: p.adjust -> p.adj
-    f.rows.forEach(r=>{if(r['p.adjust']!=null&&r['p.adj']==null){r['p.adj']=r['p.adjust'];delete r['p.adjust'];}});
-    f.cols=f.cols.map(c=>c==='p.adjust'?'p.adj':c);
+    // extract comparison from filename; handles "X_GSEA_results.csv", "GSEA_X.xlsx", "X.csv" patterns
+    let comp=name
+      .replace(/_GSEA_results\.(csv|xlsx?)$/i,'')
+      .replace(/\.(csv|xlsx?)$/i,'')
+      .replace(/^GSEA_/i,'');
+    f.rows.forEach(r=>{
+      // p-value aliases → p.adj
+      if(r['p.adjust']!=null&&r['p.adj']==null)r['p.adj']=r['p.adjust'];
+      if(r['padj']!=null&&r['p.adj']==null)r['p.adj']=r['padj'];
+      // raw p-value aliases → pvalue
+      if(r['pval']!=null&&r['pvalue']==null)r['pvalue']=r['pval'];
+      // ID/description aliases
+      if(r['pathway']!=null&&(r['ID']==null||r['ID']===''))r['ID']=r['pathway'];
+      // Handle whitespace-only column name (fgsea sometimes exports unnamed pathway column)
+      Object.keys(r).forEach(k=>{if(k.trim()===''&&(r['ID']==null||r['ID']===''))r['ID']=r[k];});
+      if(r['ID']!=null&&(r['Description']==null||r['Description']===''))r['Description']=r['ID'];
+      // size alias → setSize
+      if(r['size']!=null&&(r['setSize']==null||r['setSize']===''))r['setSize']=r['size'];
+      // leading edge alias → core_enrichment; normalize ; separator to /
+      if(r['leadingEdge']!=null&&(r['core_enrichment']==null||r['core_enrichment']===''))
+        r['core_enrichment']=String(r['leadingEdge']).replace(/;/g,'/');
+    });
+    // Prefer Comparison column from data over filename-based extraction
+    const _compFromData=(f.rows[0]?.['Comparison']||f.rows[0]?.['comparison']||'').trim();
+    if(_compFromData)comp=_compFromData;
+    f.cols=uniq(f.cols.concat(Object.keys(f.rows[0]||{})));
     STATE[cls.omics].gsea[comp]=f;
   }
   drawFileList();
@@ -1665,7 +1730,7 @@ function drawPCA(canvasId,legendId,omics,samples,vals){
  * DIFFERENTIAL
  * ===========================================================*/
 // auto-refresh on any parameter change
-['diffOmics','thPtype'].forEach(id=>{const e=$(id);if(e)e.addEventListener('change',renderDiff);});
+['diffOmics','thPtype','diffSetMode'].forEach(id=>{const e=$(id);if(e)e.addEventListener('change',renderDiff);});
 {const e=$('diffPairedOnly');if(e)e.addEventListener('change',renderDiff);}
 ['thLogFC','thP'].forEach(id=>{const e=$(id);if(e)e.addEventListener('input',renderDiff);});
 $('diffCompWrap').addEventListener('change',e=>{if(e.target.matches('input[type="checkbox"]'))renderDiff();});
@@ -1708,12 +1773,45 @@ function volcanoThresholdPlugin(lfcCut,pCut,pcol){
     }
   };
 }
+// --- Gene highlight for volcano ---
+let _diffHighlightGenes=new Set();
+function _diffHighlightRenderTags(){
+  const wrap=$('diffHighlightTags');if(!wrap)return;
+  wrap.innerHTML=[..._diffHighlightGenes].map(g=>
+    `<span style="display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:10px;background:#fff3cd;border:1px solid #f39c12;font-size:.75rem;color:#8c6500;">${esc(g)}<span data-hg="${esc(g)}" style="cursor:pointer;margin-left:2px;opacity:.65;" title="Remove">✕</span></span>`
+  ).join('');
+  wrap.querySelectorAll('[data-hg]').forEach(el=>el.addEventListener('click',()=>{
+    _diffHighlightGenes.delete(el.dataset.hg);_diffHighlightRenderTags();renderDiff();
+  }));
+}
+function _diffHighlightAdd(){
+  const inp=$('diffHighlightInput');if(!inp)return;
+  const val=inp.value.trim();
+  if(val){_diffHighlightGenes.add(val.toUpperCase());_diffHighlightRenderTags();renderDiff();}
+  inp.value='';
+}
+function updateDiffHighlightList(){
+  const omics=$('diffOmics')?.value;
+  const src=omics==='phospho-corrected'?'phospho':omics;
+  const f=STATE[src]?.dep;
+  const dl=$('diffHighlightList');if(!dl)return;
+  const genes=f?uniq(f.rows.map(r=>pickGene(r['PG.Genes'])).filter(Boolean)).sort():[];
+  dl.innerHTML=genes.map(g=>`<option value="${esc(g)}">`).join('');
+}
+{
+  const inp=$('diffHighlightInput'),btn=$('diffHighlightAdd'),clr=$('diffHighlightClear');
+  if(inp){inp.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();_diffHighlightAdd();}});}
+  if(btn)btn.addEventListener('click',_diffHighlightAdd);
+  if(clr)clr.addEventListener('click',()=>{_diffHighlightGenes.clear();_diffHighlightRenderTags();renderDiff();});
+}
+
 function renderDiff(){
   const omics=$('diffOmics').value;
   const isCorrected=omics==='phospho-corrected';
   const srcOmics=isCorrected?'phospho':omics;
   const f=STATE[srcOmics].dep;
   const cmps=getSelectedComparisons('diffCompWrap');
+  updateDiffHighlightList();
   // warn if corrected mode but no proteomics DEP
   const cwarn=$('diffCorrWarn');
   if(cwarn){
@@ -1755,6 +1853,14 @@ function renderDiff(){
   // apply paired filter if checked
   const hidePairedFalse=isCorrected&&$('diffPairedOnly')?.checked;
   if(hidePairedFalse){Object.keys(data).forEach(c=>{data[c]=data[c].filter(r=>r._paired!==false);});allRows=allRows.filter(r=>r._paired!==false);}
+  // Intersection mode: retain only genes significant in ALL selected comparisons
+  const setMode=$('diffSetMode')?.value||'overlay';
+  if(setMode==='intersection'&&cmps.length>1){
+    const sigSets=cmps.map(c=>new Set(data[c].filter(r=>r._sig).map(r=>r._id)));
+    const intSet=new Set([...sigSets[0]].filter(id=>sigSets.every(s=>s.has(id))));
+    cmps.forEach(c=>{data[c]=data[c].filter(r=>intSet.has(r._id));});
+    allRows=allRows.filter(r=>intSet.has(r._id));
+  }
   // p-value column sanity check (#7): warn user when chosen p-value column is missing/empty in the file
   const pwarn=$('diffPColWarn');
   if(pwarn){
@@ -1776,25 +1882,38 @@ function renderDiff(){
   // volcano (multi)
   const ctx=$('diffVolcano').getContext('2d');
   if(STATE.charts.diffVolcano)STATE.charts.diffVolcano.destroy();
-  // Color scheme aligned with Up/Down counts:
-  //   Up   (Log2FC >=  cut & P <= cut)  -> red    #c0392b
-  //   Down (Log2FC <= -cut & P <= cut)  -> blue   #1257a3
-  //   P-only (P <= cut, |Log2FC| < cut) -> orange #e08e2a
-  //   ns                                -> gray   #aaaaaa
-  const COL_UP='#c0392b', COL_DN='#1257a3', COL_PONLY='#e08e2a', COL_NS='#9aa3b2';
-  const datasets=cmps.map(c=>{
+  // Base colors: Up=red, Down=blue, P-only=orange, NS=gray.
+  // Each comparison group gets progressively lighter shades so groups are visually distinct.
+  const _BASE_UP='#c0392b',_BASE_DN='#1257a3',_BASE_PO='#e08e2a',_BASE_NS='#9aa3b2';
+  function _volLighten(hex,t){
+    const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);
+    return `rgba(${Math.round(r+(255-r)*t)},${Math.round(g+(255-g)*t)},${Math.round(b+(255-b)*t)},1)`;
+  }
+  function _volRgba(hex,t,a){
+    const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);
+    return `rgba(${Math.round(r+(255-r)*t)},${Math.round(g+(255-g)*t)},${Math.round(b+(255-b)*t)},${a})`;
+  }
+  const datasets=cmps.map((c,ci)=>{
+    const t=Math.min(ci*0.33,0.66); // lighten 0% / 33% / 66% for group 0/1/2+
     const rows=data[c].filter(r=>Number.isFinite(r._lfc)&&Number.isFinite(r._p));
     const up    =rows.filter(r=>r._p<=pcut && r._lfc>= lfc).map(r=>({x:r._lfc,y:-log10(r._p),gene:r._gene||r._id}));
     const dn    =rows.filter(r=>r._p<=pcut && r._lfc<=-lfc).map(r=>({x:r._lfc,y:-log10(r._p),gene:r._gene||r._id}));
     const ponly =rows.filter(r=>r._p<=pcut && Math.abs(r._lfc)<lfc).map(r=>({x:r._lfc,y:-log10(r._p),gene:r._gene||r._id}));
     const ns    =rows.filter(r=>r._p>pcut).map(r=>({x:r._lfc,y:-log10(r._p),gene:r._gene||r._id}));
     return [
-      {label:c+' Up',           data:up,    backgroundColor:COL_UP,    pointRadius:3,  pointHoverRadius:5},
-      {label:c+' Down',         data:dn,    backgroundColor:COL_DN,    pointRadius:3,  pointHoverRadius:5},
-      {label:c+' P only',       data:ponly, backgroundColor:COL_PONLY, pointRadius:2.4,pointHoverRadius:5},
-      {label:c+' ns',           data:ns,    backgroundColor:COL_NS+'66',pointRadius:1.6,pointHoverRadius:4}
+      {label:c+' Up',    data:up,    backgroundColor:_volLighten(_BASE_UP,t), pointRadius:3,  pointHoverRadius:5},
+      {label:c+' Down',  data:dn,    backgroundColor:_volLighten(_BASE_DN,t), pointRadius:3,  pointHoverRadius:5},
+      {label:c+' P only',data:ponly, backgroundColor:_volLighten(_BASE_PO,t), pointRadius:2.4,pointHoverRadius:5},
+      {label:c+' ns',    data:ns,    backgroundColor:_volRgba(_BASE_NS,t,0.4), pointRadius:1.6,pointHoverRadius:4}
     ];
   }).flat();
+  // Highlighted genes overlay (rendered on top)
+  if(_diffHighlightGenes.size>0){
+    const hlPts=allRows
+      .filter(r=>Number.isFinite(r._lfc)&&Number.isFinite(r._p)&&_diffHighlightGenes.has((r._gene||r._id||'').toUpperCase()))
+      .map(r=>({x:r._lfc,y:-log10(r._p),gene:r._gene||r._id}));
+    if(hlPts.length)datasets.push({label:'Highlighted',data:hlPts,backgroundColor:'#f39c12',borderColor:'#fff',borderWidth:1.5,pointRadius:7,pointHoverRadius:9,_highlight:true});
+  }
   // axis bounds: X symmetric, Y with 10% padding
   const allPts=datasets.flatMap(d=>d.data);
   let xMin=0,xMax=0,yMin=0,yMax=0;
@@ -1814,13 +1933,30 @@ function renderDiff(){
       x:{title:{display:true,text:isCorrected?'Corrected Log2FC (phospho − protein)':'Log2 fold change'},min:xMin,max:xMax},
       y:{title:{display:true,text:'−log10 '+({'adj.P.Val':'p.adj','P.Value':'p-val'}[pcol]||pcol)},min:yMin,max:yMax}
     }
-  },plugins:[volcanoThresholdPlugin(lfc,pcut,pcol)]});
-  // up/down counts
+  },plugins:[volcanoThresholdPlugin(lfc,pcut,pcol),{
+    id:'volcanoLabels',
+    afterDatasetsDraw(chart){
+      const hlIdx=chart.data.datasets.findIndex(d=>d._highlight);
+      if(hlIdx<0)return;
+      const meta=chart.getDatasetMeta(hlIdx);
+      if(meta.hidden)return;
+      const ctx=chart.ctx;ctx.save();
+      ctx.font='bold 11px system-ui,sans-serif';
+      meta.data.forEach((pt,i)=>{
+        const label=chart.data.datasets[hlIdx].data[i]?.gene||'';if(!label)return;
+        ctx.strokeStyle='rgba(255,255,255,0.9)';ctx.lineWidth=3;ctx.lineJoin='round';
+        ctx.strokeText(label,pt.x+8,pt.y-5);
+        ctx.fillStyle='#b85500';ctx.fillText(label,pt.x+8,pt.y-5);
+      });
+      ctx.restore();
+    }
+  }]});
+  // up/down counts — per-comparison bars use the same lightened shades as the volcano
   const cctx=$('diffCounts').getContext('2d');
   if(STATE.charts.diffCounts)STATE.charts.diffCounts.destroy();
   STATE.charts.diffCounts=new Chart(cctx,{type:'bar',data:{labels:cmps,datasets:[
-    {label:'Up',data:cmps.map(c=>data[c].filter(r=>r._sig&&r._dir==='up').length),backgroundColor:'#c0392b'},
-    {label:'Down',data:cmps.map(c=>data[c].filter(r=>r._sig&&r._dir==='down').length),backgroundColor:'#1257a3'}
+    {label:'Up',  data:cmps.map((c,ci)=>data[c].filter(r=>r._sig&&r._dir==='up').length),  backgroundColor:cmps.map((_,ci)=>_volLighten(_BASE_UP,Math.min(ci*0.33,0.66)))},
+    {label:'Down',data:cmps.map((c,ci)=>data[c].filter(r=>r._sig&&r._dir==='down').length),backgroundColor:cmps.map((_,ci)=>_volLighten(_BASE_DN,Math.min(ci*0.33,0.66)))}
   ]},options:{indexAxis:'y',responsive:true,plugins:{legend:{position:'bottom'}}}});
   // table
   lastDiffRows=allRows.filter(r=>r._sig).sort((a,b)=>Math.abs(b._lfc)-Math.abs(a._lfc));
@@ -1852,6 +1988,65 @@ function renderDiffTable(){
 /* ===========================================================
  * EXPRESSION HEATMAP
  * ===========================================================*/
+function _downloadVolcanoSVG(){
+  const chart=STATE.charts.diffVolcano;
+  if(!chart){alert('Render the volcano chart first.');return;}
+  const W=chart.width,H=chart.height;
+  const {left,right,top,bottom}=chart.chartArea;
+  const sx=chart.scales.x,sy=chart.scales.y;
+  const lfc=parseFloat($('thLogFC').value),pcut=parseFloat($('thP').value),pcol=$('thPtype')?.value||'adj.P.Val';
+  const s=[`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" font-family="system-ui,sans-serif">`,
+    `<rect width="${W}" height="${H}" fill="white"/>`,
+    `<rect x="${left}" y="${top}" width="${right-left}" height="${bottom-top}" fill="#fafafa" stroke="#ddd" stroke-width="1"/>`
+  ];
+  // zero-lines
+  const y0=sy.getPixelForValue(0),x0=sx.getPixelForValue(0);
+  if(y0>=top&&y0<=bottom)s.push(`<line x1="${left}" y1="${y0.toFixed(1)}" x2="${right}" y2="${y0.toFixed(1)}" stroke="#ddd" stroke-width="0.8"/>`);
+  if(x0>=left&&x0<=right)s.push(`<line x1="${x0.toFixed(1)}" y1="${top}" x2="${x0.toFixed(1)}" y2="${bottom}" stroke="#ddd" stroke-width="0.8"/>`);
+  // threshold lines
+  const yCutPx=sy.getPixelForValue(-Math.log10(pcut));
+  if(yCutPx>=top&&yCutPx<=bottom)s.push(`<line x1="${left}" y1="${yCutPx.toFixed(1)}" x2="${right}" y2="${yCutPx.toFixed(1)}" stroke="#888" stroke-width="1" stroke-dasharray="5,4"/>`);
+  [-lfc,lfc].forEach(v=>{const xp=sx.getPixelForValue(v);if(xp>=left&&xp<=right)s.push(`<line x1="${xp.toFixed(1)}" y1="${top}" x2="${xp.toFixed(1)}" y2="${bottom}" stroke="#888" stroke-width="1" stroke-dasharray="5,4"/>`);});
+  // data points — ns first (background), then sig on top
+  const hlDs=chart.data.datasets.find(d=>d._highlight);
+  const normalDs=chart.data.datasets.filter(d=>!d._highlight);
+  [...normalDs.filter(d=>d.label.endsWith(' ns')),...normalDs.filter(d=>!d.label.endsWith(' ns'))].forEach(ds=>{
+    const r=ds.pointRadius||3;
+    ds.data.forEach(pt=>{
+      const px=sx.getPixelForValue(pt.x),py=sy.getPixelForValue(pt.y);
+      if(px<left-r||px>right+r||py<top-r||py>bottom+r)return;
+      s.push(`<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="${r}" fill="${ds.backgroundColor}"/>`);
+    });
+  });
+  // highlighted points + labels
+  if(hlDs)hlDs.data.forEach(pt=>{
+    const px=sx.getPixelForValue(pt.x),py=sy.getPixelForValue(pt.y);
+    s.push(`<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="7" fill="#f39c12" stroke="white" stroke-width="1.5"/>`);
+    if(pt.gene)s.push(`<text x="${(px+8).toFixed(1)}" y="${(py-5).toFixed(1)}" font-size="11" font-weight="bold" fill="#b85500" paint-order="stroke" stroke="white" stroke-width="3" stroke-linejoin="round">${esc(pt.gene)}</text>`);
+  });
+  // axes
+  s.push(`<line x1="${left}" y1="${bottom}" x2="${right}" y2="${bottom}" stroke="#aaa" stroke-width="1"/>`);
+  s.push(`<line x1="${left}" y1="${top}" x2="${left}" y2="${bottom}" stroke="#aaa" stroke-width="1"/>`);
+  // ticks
+  (sx.ticks||[]).forEach(tick=>{const px=sx.getPixelForValue(tick.value);if(px<left||px>right)return;s.push(`<line x1="${px.toFixed(1)}" y1="${bottom}" x2="${px.toFixed(1)}" y2="${(bottom+4).toFixed(1)}" stroke="#999" stroke-width="1"/>`);const lbl=Array.isArray(tick.label)?tick.label.join(''):(tick.label??tick.value);s.push(`<text x="${px.toFixed(1)}" y="${(bottom+14).toFixed(1)}" text-anchor="middle" font-size="10" fill="#666">${esc(String(lbl))}</text>`);});
+  (sy.ticks||[]).forEach(tick=>{const py=sy.getPixelForValue(tick.value);if(py<top||py>bottom)return;s.push(`<line x1="${left}" y1="${py.toFixed(1)}" x2="${(left-4).toFixed(1)}" y2="${py.toFixed(1)}" stroke="#999" stroke-width="1"/>`);const lbl=Array.isArray(tick.label)?tick.label.join(''):(tick.label??tick.value);s.push(`<text x="${(left-7).toFixed(1)}" y="${py.toFixed(1)}" text-anchor="end" dominant-baseline="middle" font-size="10" fill="#666">${esc(String(lbl))}</text>`);});
+  // axis titles
+  const xTit=chart.options?.scales?.x?.title?.text||'',yTit=chart.options?.scales?.y?.title?.text||'';
+  const cx=(left+right)/2,cy=(top+bottom)/2;
+  if(xTit)s.push(`<text x="${cx.toFixed(1)}" y="${(H-8).toFixed(1)}" text-anchor="middle" font-size="12" fill="#444">${esc(xTit)}</text>`);
+  if(yTit)s.push(`<text transform="rotate(-90 14 ${cy.toFixed(1)})" x="14" y="${cy.toFixed(1)}" text-anchor="middle" font-size="12" fill="#444">${esc(yTit)}</text>`);
+  // legend
+  let lx=left,ly=bottom+26;
+  normalDs.filter(d=>d.data.length>0).forEach(ds=>{
+    if(lx+140>right+10){lx=left;ly+=16;}
+    s.push(`<circle cx="${(lx+5).toFixed(1)}" cy="${ly.toFixed(1)}" r="${ds.pointRadius||3}" fill="${ds.backgroundColor}"/>`);
+    s.push(`<text x="${(lx+13).toFixed(1)}" y="${ly.toFixed(1)}" dominant-baseline="middle" font-size="10" fill="#444">${esc(ds.label)}</text>`);
+    lx+=140;
+  });
+  s.push('</svg>');
+  const blob=new Blob([s.join('\n')],{type:'image/svg+xml'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='volcano.svg';a.click();
+}
 // auto-refresh heatmap on parameter change
 ['hmOmics','hmMode','hmComp','hmZ'].forEach(id=>{const e=$(id);if(e)e.addEventListener('change',renderHm);});
 ['hmTopN'].forEach(id=>{const e=$(id);if(e)e.addEventListener('input',renderHm);});
@@ -1908,6 +2103,7 @@ function renderHm(){
 // auto-refresh GSEA on parameter change
 ['gseaCollection'].forEach(id=>{const e=$(id);if(e)e.addEventListener('change',renderGsea);});
 ['gseaP','gseaTopN'].forEach(id=>{const e=$(id);if(e)e.addEventListener('input',renderGsea);});
+{const e=$('gseaSearch');if(e)e.addEventListener('input',renderGsea);}
 ['bubbleSortKey','bubbleSortOrder'].forEach(id=>{const e=$(id);if(e)e.addEventListener('change',renderGsea);});
 $('gseaCompWrap').addEventListener('change',e=>{if(e.target.matches('input[type="checkbox"]'))renderGsea();});
 $('gseaExport').addEventListener('click',exportGseaCsv);
@@ -2204,7 +2400,8 @@ function renderGsea(){
   const coll=$('gseaCollection').value;
   const pcut=parseFloat($('gseaP').value);
   const topN=parseInt($('gseaTopN').value);
-  if(!keys.length){$('gseaBar').getContext('2d').clearRect(0,0,1000,1000);$('gseaHm').innerHTML='';$('gseaList').innerHTML='<p style="color:var(--muted);">No comparisons selected.</p>';return;}
+  if(!keys.length){if(STATE.charts.gseaBar){STATE.charts.gseaBar.destroy();STATE.charts.gseaBar=null;}const _bd=$('gseaBarDom');if(_bd)_bd.innerHTML='';$('gseaHm').innerHTML='';$('gseaList').innerHTML='<p style="color:var(--muted);">No comparisons selected.</p>';return;}
+  const searchQ=($('gseaSearch')?.value||'').trim().toLowerCase();
   // gather — keep label = `[Pro]/[Phos] comp` so user always sees the source omics
   const allByComp={};
   keys.forEach(k=>{
@@ -2213,7 +2410,9 @@ function renderGsea(){
     const label=`[${omics==='phospho'?'Phos':'Pro'}] ${comp}`;
     const rows=f.rows.filter(r=>{
       if(coll!=='ALL'&&!(r.ID||'').toUpperCase().startsWith(coll+'_'))return false;
-      const p=safeNum(r['p.adj']);return Number.isFinite(p)&&p<=pcut;
+      const p=safeNum(r['p.adj']);if(!(Number.isFinite(p)&&p<=pcut))return false;
+      if(searchQ&&!(r.ID||'').toLowerCase().includes(searchQ)&&!(r.Description||'').toLowerCase().includes(searchQ))return false;
+      return true;
     }).map(r=>({...r,_nes:safeNum(r.NES),_p:safeNum(r['p.adj']),_size:safeNum(r.setSize),_id:r.ID}));
     allByComp[label]=rows;
   });
@@ -2222,39 +2421,104 @@ function renderGsea(){
   else if(tab==='bubble')renderGseaBubble(allByComp,topN);
   else renderGseaList(allByComp,topN);
 }
+// Split underscore-delimited pathway name at the most balanced point (minimises max line length)
+function gseaBalancedWrap(name,widthPx,charPx){
+  charPx=charPx||8.5;
+  if(name.length*charPx<=widthPx)return null; // fits on one line
+  const parts=name.split('_');if(parts.length<=1)return null;
+  let bestSplit=1,bestMax=Infinity,leftLen=0;
+  for(let i=0;i<parts.length-1;i++){
+    leftLen+=parts[i].length+1;
+    const rightLen=name.length-leftLen;
+    const mx=Math.max(leftLen,rightLen);
+    if(mx<bestMax){bestMax=mx;bestSplit=i+1;}
+  }
+  return[parts.slice(0,bestSplit).join('_')+'_',parts.slice(bestSplit).join('_')];
+}
 function renderGseaBar(allByComp,topN){
-  const ctx=$('gseaBar').getContext('2d');
-  if(STATE.charts.gseaBar)STATE.charts.gseaBar.destroy();
-  const cmps=Object.keys(allByComp);
-  // for each comparison take top |NES|
-  const datasets=cmps.map((c,i)=>{
-    const top=allByComp[c].slice().sort((a,b)=>Math.abs(b._nes)-Math.abs(a._nes)).slice(0,topN);
-    return {label:c,data:top.map(r=>({x:r._nes,y:r._id})),backgroundColor:COL_PALETTE[i%COL_PALETTE.length]};
+  if(STATE.charts.gseaBar){STATE.charts.gseaBar.destroy();STATE.charts.gseaBar=null;}
+  const dom=$('gseaBarDom');if(!dom)return;
+  dom.innerHTML='';
+  const cmps=Object.keys(allByComp);if(!cmps.length)return;
+  const allIds=uniq(cmps.flatMap(c=>allByComp[c].slice().sort((a,b)=>Math.abs(b._nes)-Math.abs(a._nes)).slice(0,topN).map(r=>r._id)));
+  const allNES=cmps.flatMap(c=>allByComp[c].map(r=>r._nes)).filter(Number.isFinite);
+  const nesMax=allNES.length?Math.max(1,Math.max(...allNES.map(Math.abs))):1;
+  const lk={};cmps.forEach(c=>{lk[c]={};allByComp[c].forEach(r=>{lk[c][r._id]=r;});});
+  // LBL_W: raw length for pathways that fit within 600px cap; balanced half-length for those that don't
+  const _effLenBar=allIds.reduce((m,id)=>{
+    if(id.length*8.5<=600)return Math.max(m,id.length);
+    const pts=id.split('_');if(pts.length<=1)return Math.max(m,id.length);
+    let best=id.length,left=0;
+    for(let i=0;i<pts.length-1;i++){left+=pts[i].length+1;best=Math.min(best,Math.max(left,id.length-left));}
+    return Math.max(m,best);
+  },0);
+  const LBL_W=Math.min(600,Math.max(160,Math.ceil(_effLenBar*8.5)));
+  const BAR_H=14,GAP=2,BAR_W=260,ROW_GAP=8;
+  STATE._gseaLabelColPx=LBL_W;
+  const outer=document.createElement('div');
+  // total width = label + 3×gap + bar area + NES col + p.adj col
+  outer.style.cssText=`font-size:.74rem;user-select:text;width:${LBL_W+ROW_GAP+BAR_W+ROW_GAP+44+ROW_GAP+58}px;`;
+  // axis hint
+  const axisHint=document.createElement('div');
+  axisHint.style.cssText=`display:flex;gap:8px;font-size:.68rem;color:var(--muted);padding:0 0 4px;`;
+  axisHint.innerHTML=`<div style="flex:0 0 ${LBL_W}px;"></div><div style="flex:1;display:flex;justify-content:space-between;padding:0 4px;"><span>← neg NES</span><span>pos NES →</span></div><div style="flex:0 0 44px;text-align:right;padding-right:2px;">NES</div><div style="flex:0 0 58px;text-align:left;padding-left:2px;">p.adj</div>`;
+  outer.appendChild(axisHint);
+  const wrap=document.createElement('div');
+  wrap.style.cssText='';
+  allIds.forEach(id=>{
+    const row=document.createElement('div');
+    row.style.cssText='display:flex;align-items:flex-start;border-bottom:1px solid #f0f0f0;gap:8px;padding:3px 0;';
+    // pathway label — wraps so full text always visible & selectable
+    const lbl=document.createElement('div');
+    lbl.style.cssText=`flex:0 0 ${LBL_W}px;white-space:normal;word-break:break-word;overflow-wrap:normal;text-align:right;cursor:text;line-height:1.4;`;
+    const _sp=gseaBalancedWrap(id,LBL_W);
+    if(_sp){lbl.innerHTML=esc(_sp[0])+'<br>'+esc(_sp[1]);}else{lbl.textContent=id;}
+    row.appendChild(lbl);
+    // bars stack
+    const bars=document.createElement('div');
+    bars.style.cssText=`flex:0 0 ${BAR_W}px;display:flex;flex-direction:column;gap:${GAP}px;padding-top:2px;`;
+    const nesCol=document.createElement('div');
+    nesCol.style.cssText=`flex:0 0 44px;display:flex;flex-direction:column;gap:${GAP}px;padding-top:2px;text-align:right;`;
+    const padCol=document.createElement('div');
+    padCol.style.cssText=`flex:0 0 58px;display:flex;flex-direction:column;gap:${GAP}px;padding-top:2px;text-align:left;`;
+    cmps.forEach((c,ci)=>{
+      const r=lk[c][id],nes=r?r._nes:null,pv=r?r._p:null,clr=GSEA_PALETTE[ci%GSEA_PALETTE.length];
+      const b=document.createElement('div');
+      b.style.cssText=`position:relative;height:${BAR_H}px;background:#f5f5f5;border-radius:2px;overflow:visible;`;
+      const zl=document.createElement('div');
+      zl.style.cssText='position:absolute;left:50%;top:0;bottom:0;width:1px;background:#ccc;z-index:1;';
+      b.appendChild(zl);
+      if(Number.isFinite(nes)){
+        const pct=Math.abs(nes)/nesMax*50;
+        const fill=document.createElement('div');
+        fill.style.cssText=nes>=0
+          ?`position:absolute;left:50%;width:${pct}%;top:1px;bottom:1px;background:${clr};border-radius:0 2px 2px 0;opacity:.85;`
+          :`position:absolute;right:50%;width:${pct}%;top:1px;bottom:1px;background:${clr};border-radius:2px 0 0 2px;opacity:.85;`;
+        b.appendChild(fill);
+        b.title=`${c}: NES = ${nes.toFixed(3)}, p.adj = ${Number.isFinite(pv)?pv.toExponential(2):'—'}`;
+      }
+      bars.appendChild(b);
+      const nv=document.createElement('div');
+      nv.style.cssText=`height:${BAR_H}px;line-height:${BAR_H}px;font-size:.72rem;color:${Number.isFinite(nes)?clr:'#ccc'};font-weight:500;`;
+      nv.textContent=Number.isFinite(nes)?nes.toFixed(2):'—';
+      nesCol.appendChild(nv);
+      const pn=document.createElement('div');
+      pn.style.cssText=`height:${BAR_H}px;line-height:${BAR_H}px;font-size:.72rem;color:${Number.isFinite(pv)?'#555':'#ccc'};`;
+      pn.textContent=Number.isFinite(pv)?pv.toExponential(2):'—';
+      padCol.appendChild(pn);
+    });
+    row.appendChild(bars);row.appendChild(nesCol);row.appendChild(padCol);
+    wrap.appendChild(row);
   });
-  // unify y labels
-  const labels=uniq(datasets.flatMap(d=>d.data.map(p=>p.y)));
-  const ds=datasets.map(d=>({label:d.label,data:labels.map(l=>{const m=d.data.find(p=>p.y===l);return m?m.x:null;}),backgroundColor:d.backgroundColor}));
-  const maxLbl=labels.reduce((m,l)=>Math.max(m,l.length),0);
-  // shared sizing (also used by heatmap so they always match)
-  const UNIFIED_W=Math.min(1200, Math.max(720, 340 + Math.min(560, maxLbl*6.5)));
-  const ROW_PX=32;       // body row height
-  const HEADER_PX=34;    // top label / spacing
-  const FOOTER_PX=78;    // x-axis title + bottom legend
-  const bodyH=Math.max(ROW_PX*4, labels.length*ROW_PX);
-  const canvasH=HEADER_PX+bodyH+FOOTER_PX;
-  STATE._gseaPanelW=UNIFIED_W;
-  STATE._gseaLabelColPx=Math.min(440, Math.max(220, maxLbl*7+40));
-  STATE._gseaPanelH=canvasH;
-  STATE._gseaRowPx=ROW_PX;
-  STATE._gseaHeaderPx=HEADER_PX;
-  STATE._gseaFooterPx=FOOTER_PX;
-  const cv=$('gseaBar');cv.style.width=UNIFIED_W+'px';cv.style.height=canvasH+'px';
-  STATE.charts.gseaBar=new Chart(ctx,{type:'bar',data:{labels,datasets:ds},options:{indexAxis:'y',maintainAspectRatio:false,responsive:true,
-    plugins:{legend:{position:'bottom'}},
-    scales:{
-      x:{title:{display:true,text:'NES'}},
-      y:{ticks:{autoSkip:false},afterFit:s=>{s.width=Math.max(s.width,STATE._gseaLabelColPx);}}
-    }}});
+  outer.appendChild(wrap);
+  // legend
+  {
+    const leg=document.createElement('div');
+    leg.style.cssText='display:flex;gap:14px;flex-wrap:wrap;justify-content:flex-end;padding:6px 0 2px;font-size:.72rem;';
+    cmps.forEach((c,ci)=>{leg.innerHTML+=`<span><span style="display:inline-block;width:14px;height:8px;background:${GSEA_PALETTE[ci%GSEA_PALETTE.length]};opacity:.85;border-radius:2px;vertical-align:middle;margin-right:4px;"></span>${esc(c)}</span>`;});
+    outer.appendChild(leg);
+  }
+  dom.appendChild(outer);
 }
 function renderGseaHm(allByComp,topN){
   const div=$('gseaHm');div.innerHTML='';
@@ -2262,47 +2526,70 @@ function renderGseaHm(allByComp,topN){
   // pick union top-N per comparison
   const ids=uniq(cmps.flatMap(c=>allByComp[c].slice().sort((a,b)=>Math.abs(b._nes)-Math.abs(a._nes)).slice(0,topN).map(r=>r._id)));
   const M=ids.map(id=>cmps.map(c=>{const m=allByComp[c].find(r=>r._id===id);return m?m._nes:NaN;}));
+  const Padj=ids.map(id=>cmps.map(c=>{const m=allByComp[c].find(r=>r._id===id);return m?m._p:NaN;}));
   const allV=M.flat().filter(Number.isFinite);if(!allV.length){div.innerHTML='<p style="color:var(--muted);">No values.</p>';return;}
   const vmax=Math.max(Math.abs(quantile(allV,0.05)),Math.abs(quantile(allV,0.95)))||1;
-  // align with bar chart sizing
-  const lblW=STATE._gseaLabelColPx||260;
-  const totalW=STATE._gseaPanelW||640;
-  const totalH=STATE._gseaPanelH||420;
-  const headerPx=STATE._gseaHeaderPx||30;
-  const footerPx=STATE._gseaFooterPx||70;
-  const rowPx=STATE._gseaRowPx||26;
-  const cellW=Math.max(72, Math.floor((totalW-lblW)/Math.max(1,cmps.length)));
-  // wrapper sized to match bar canvas height
-  div.style.height=totalH+'px';
-  div.style.boxSizing='border-box';
-  div.style.display='flex';
-  div.style.flexDirection='column';
-  div.style.justifyContent='flex-start';
+  // lblW: raw length for pathways that fit within 560px cap; balanced half-length for those that don't
+  const _effLenHm=ids.reduce((m,id)=>{
+    if(id.length*8.5<=560)return Math.max(m,id.length);
+    const pts=id.split('_');if(pts.length<=1)return Math.max(m,id.length);
+    let best=id.length,left=0;
+    for(let i=0;i<pts.length-1;i++){left+=pts[i].length+1;best=Math.min(best,Math.max(left,id.length-left));}
+    return Math.max(m,best);
+  },0);
+  const lblW=Math.min(560,Math.max(180,Math.ceil(_effLenHm*8.5)));
+  const rowPx=26;
+  const cellW=Math.max(80,Math.min(160,Math.floor(360/Math.max(1,cmps.length))));
+  const maxCmpLen=cmps.reduce((m,s)=>Math.max(m,s.length),0);
+  const estHdrLines=Math.max(2,Math.ceil(maxCmpLen*6.5/cellW));
+  const headerH=Math.min(100,Math.max(44,estHdrLines*18+10));
+  div.style.height='';
+  div.style.overflow='visible';
+  div.style.position='relative';
+  div.style.maxHeight='';
+  div.style.display='block';
+  div.style.flexDirection='';
+  div.style.justifyContent='';
   const grid=document.createElement('div');grid.className='hm-grid';
   grid.style.gridTemplateColumns=`${lblW}px repeat(${cmps.length},${cellW}px)`;
-  grid.style.gridAutoRows=rowPx+'px';
+  grid.style.gridTemplateRows=`${headerH}px`+` minmax(${rowPx}px,auto)`.repeat(ids.length);
   grid.style.width=(lblW+cellW*cmps.length)+'px';
-  grid.style.marginTop=Math.max(0,(headerPx-22))+'px';
+  grid.style.marginTop='0';
   // header row
   grid.appendChild(Object.assign(document.createElement('div'),{className:'hm-rowlbl',textContent:''}));
-  cmps.forEach(s=>{const c=document.createElement('div');c.className='hm-collbl';c.textContent=s;grid.appendChild(c);});
+  cmps.forEach(s=>{
+    const c=document.createElement('div');c.className='hm-collbl';
+    // horizontal wrapping, [Pro]/[Phos] tag on first line
+    c.style.cssText='writing-mode:horizontal-tb;transform:none;white-space:normal;word-break:break-word;overflow-wrap:anywhere;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;padding:4px 2px;font-size:.72rem;box-sizing:border-box;';
+    const mt=s.match(/^(\[[^\]]+\])\s*(.*)/);
+    if(mt){
+      const tag=document.createElement('span');tag.textContent=mt[1];tag.style.cssText='display:block;white-space:nowrap;font-weight:700;';
+      c.appendChild(tag);
+      if(mt[2]){const rest=document.createElement('span');rest.textContent=mt[2];c.appendChild(rest);}
+    }else{c.textContent=s;}
+    grid.appendChild(c);
+  });
   for(let i=0;i<ids.length;i++){
-    const lbl=Object.assign(document.createElement('div'),{className:'hm-rowlbl',textContent:ids[i]});
-    lbl.style.cssText='white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;justify-content:flex-end;text-align:right;';
+    const lbl=document.createElement('div');lbl.className='hm-rowlbl';
+    lbl.style.cssText='white-space:normal;word-break:break-word;overflow-wrap:normal;display:flex;align-items:center;justify-content:flex-end;text-align:right;padding:2px 4px 2px 0;';
     lbl.title=ids[i];
+    const _sp2=gseaBalancedWrap(ids[i],lblW);
+    if(_sp2){lbl.innerHTML=esc(_sp2[0])+'<br>'+esc(_sp2[1]);}else{lbl.textContent=ids[i];}
     grid.appendChild(lbl);
     for(let j=0;j<cmps.length;j++){
       const v=M[i][j];const cell=document.createElement('div');cell.className='hm-cell';
-      cell.style.minWidth=cellW+'px';cell.style.height=rowPx+'px';cell.style.display='flex';cell.style.alignItems='center';cell.style.justifyContent='center';
+      cell.style.minWidth=cellW+'px';cell.style.minHeight=rowPx+'px';cell.style.display='flex';cell.style.alignItems='center';cell.style.justifyContent='center';cell.style.alignSelf='stretch';
       if(Number.isFinite(v)){cell.style.background=divergingColor(v,vmax);cell.textContent=v.toFixed(2);}else{cell.style.background='#f0f0f0';}
-      cell.addEventListener('mousemove',e=>tipShow(e,`<b>${esc(ids[i])}</b><br>${esc(cmps[j])}<br>NES = ${fmt(v,3)}`));cell.addEventListener('mouseleave',tipHide);
+      cell.addEventListener('mousemove',e=>tipShow(e,`<b>${esc(ids[i])}</b><br>${esc(cmps[j])}<br>NES = ${fmt(v,3)}<br>p.adj = ${Number.isFinite(Padj[i][j])?Padj[i][j].toExponential(2):'—'}`));cell.addEventListener('mouseleave',tipHide);
       grid.appendChild(cell);
     }
   }
   div.appendChild(grid);
-  // bottom spacer to match bar's x-axis + legend area
-  const spacer=document.createElement('div');spacer.style.flex='1 1 auto';
-  div.appendChild(spacer);
+  // NES color scale legend — absolute top-left (within label-column header area)
+  const _hmLg=document.createElement('div');
+  _hmLg.style.cssText='position:absolute;top:6px;left:6px;display:flex;align-items:center;gap:8px;font-size:.68rem;background:rgba(255,255,255,0.92);border-radius:5px;padding:3px 8px;pointer-events:none;';
+  _hmLg.innerHTML=`<span style="color:#555;font-weight:600;">NES:</span><span style="color:rgb(26,79,134);font-weight:700;">${(-vmax).toFixed(1)}</span><div style="width:90px;height:10px;background:linear-gradient(to right,rgb(26,79,134),#ffffff,rgb(192,57,43));border:1px solid #ccc;border-radius:2px;"></div><span style="color:rgb(192,57,43);font-weight:700;">+${vmax.toFixed(1)}</span>`;
+  div.appendChild(_hmLg);
 }
 function renderGseaBubble(allByComp,topN){
   const wrap=$('gseaBubbleWrap');wrap.innerHTML='';
