@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -11,6 +11,7 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -51,11 +52,11 @@ main{max-width:1280px;margin:0 auto;padding:16px;}
 .file-tag.unknown{background:#fbe6e6;border-color:#e3a0a0;color:#a02828;}
 .file-tag .x{cursor:pointer;opacity:.6;}.file-tag .x:hover{opacity:1;color:var(--err);}
 
-button{cursor:pointer;border:1px solid var(--line);border-radius:9px;font-weight:600;font-size:.85rem;padding:7px 14px;background:#fff;color:var(--ink);transition:.15s;}
+button{cursor:pointer;border:1px solid var(--line);border-radius:9px;font-weight:600;font-size:.85rem;height:34px;padding:0 14px;background:#fff;color:var(--ink);transition:.15s;}
 button:hover{transform:translateY(-1px);background:var(--panel-2);}
 .btn-primary{background:var(--brand-mid);border-color:var(--brand-mid);color:#fff;}
 .btn-primary:hover{background:#14527c;color:#fff;}
-.btn-sm{padding:5px 11px;font-size:.78rem;}
+.btn-sm{height:34px;padding:0 11px;font-size:.78rem;}
 .btn-ghost{background:transparent;border:1px dashed var(--line);color:var(--muted);}
 .btn-ghost:hover{background:var(--panel-2);color:var(--ink);border-color:var(--brand-mid);transform:translateY(-1px);}
 .btn-ghost:active{transform:translateY(0);background:#e8ecf2;}
@@ -70,6 +71,7 @@ select:focus,input:focus{outline:2px solid var(--brand-mid);outline-offset:1px;}
 .row{display:flex;flex-wrap:wrap;gap:10px;align-items:center;}
 .row-end{justify-content:flex-end;}
 .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.grid-2>*{min-width:0;min-height:0;}
 .grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
 @media(max-width:900px){.grid-2,.grid-3{grid-template-columns:1fr;}}
 
@@ -88,24 +90,38 @@ tr:hover td{background:var(--panel-2);}
 
 .chart-box{background:#fff;border:1px solid var(--line);border-radius:9px;padding:10px;}
 .chart-box canvas{max-width:100%;}
+.dl-btn{float:right;padding:3px 9px;font-size:.72rem;margin:-2px 0 0 8px;line-height:1.5;height:auto;}
 .legend-row{display:flex;gap:14px;flex-wrap:wrap;font-size:.78rem;color:var(--muted);margin-top:6px;}
 .legend-dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:4px;vertical-align:middle;}
 
 .cb-wrap{display:inline-flex;flex-wrap:wrap;gap:4px 10px;padding:6px 9px;border:1px solid var(--line);border-radius:8px;background:var(--panel-2);min-height:38px;align-items:center;}
 .cb-item{display:flex;align-items:center;gap:4px;font-size:.8rem;cursor:pointer;white-space:nowrap;}
+.comp-dropdown{position:relative;}
+.comp-btn{display:flex;align-items:center;justify-content:space-between;height:34px;padding:0 10px;border:1px solid var(--line);border-radius:9px;background:#fff;font-size:.83rem;color:var(--ink);cursor:pointer;user-select:none;transition:border-color .15s;min-width:180px;max-width:360px;gap:6px;}
+.comp-btn:hover{border-color:#94a3b8;}
+.comp-btn.open{border-color:var(--brand-mid);box-shadow:0 0 0 2px #bfdbfe;}
+.comp-btn .c-lbl{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;}
+.comp-btn .c-lbl.placeholder{color:var(--muted);}
+.comp-btn .c-arrow{font-size:.62rem;color:var(--muted);flex-shrink:0;transition:transform .2s;}
+.comp-btn.open .c-arrow{transform:rotate(180deg);}
+.comp-panel{display:none;position:absolute;top:calc(100% + 4px);left:0;z-index:200;background:#fff;border:1px solid var(--line);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.13);padding:6px 0;min-width:220px;max-height:300px;overflow-y:auto;}
+.comp-panel.open{display:block;}
+.comp-panel label{display:flex;align-items:center;gap:8px;padding:5px 13px;cursor:pointer;font-size:.8rem;white-space:nowrap;}
+.comp-panel label:hover{background:var(--panel-2);}
+.comp-panel input[type=checkbox]{accent-color:var(--brand-mid);width:14px;height:14px;cursor:pointer;flex-shrink:0;}
 .gmt-note{color:var(--muted);font-size:.7rem;margin-left:2px;}
 
 .heatmap-wrap{overflow:auto;max-width:100%;}
 .hm-grid{display:inline-grid;gap:1px;background:#fff;}
 .hm-cell{display:flex;align-items:center;justify-content:center;font-size:.72rem;font-weight:600;color:rgba(0,0,0,.72);min-width:34px;height:24px;padding:0 5px;}
 .hm-rowlbl{font-size:.72rem;font-weight:400;padding:3px 8px;color:#111;text-align:right;background:#fff;white-space:nowrap;}
-.hm-collbl{font-size:.72rem;font-weight:400;padding:5px 3px;color:#111;writing-mode:vertical-rl;transform:rotate(180deg);background:#fff;}
+.hm-collbl{font-size:.72rem;font-weight:400;padding:5px 3px;color:#111;writing-mode:vertical-rl;transform:rotate(180deg);background:#fff;position:relative;z-index:1;}
 
 #hmTip{position:fixed;background:rgba(28,35,48,0.93);color:#fff;padding:5px 10px;border-radius:6px;font-size:11px;line-height:1.5;pointer-events:none;z-index:9999;display:none;white-space:nowrap;}
 
 .threshold-row{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:8px;font-size:.82rem;}
 .threshold-row label{display:flex;align-items:center;gap:6px;}
-.threshold-row input[type=number]{width:80px;height:30px;}
+.threshold-row input[type=number]{width:80px;height:34px;}
 
 textarea{width:100%;min-height:90px;padding:8px;border:1px solid var(--line);border-radius:8px;font-family:ui-monospace,Consolas,monospace;font-size:.8rem;resize:vertical;}
 
@@ -134,7 +150,7 @@ body{padding-bottom:24px;}
 </head>
 <body>
 <header>
-  <h1>Proteomics-to-Neo v1.3</h1>
+  <h1>Proteomics-to-Neo v1.4</h1>
   <p>Proteomics &amp; phosphoproteomics explorer · differential, GSEA, cross-omics regulation</p>
   <p class="author">By ILYH</p>
 </header>
@@ -155,17 +171,16 @@ body{padding-bottom:24px;}
   <div id="panel-upload" class="panel active">
     <div class="card">
       <h2>Upload CSV files</h2>
-      <p class="note">Drop CSVs / ZIPs into the matching side (auto-classified by column headers; the side you drop on overrides omics detection).</p>
       <div class="grid-2">
         <label class="upload-zone" id="dropZonePro" data-omics="proteomics">
           <span class="icon">🧬</span>
-          <p><strong>Proteomics</strong> — drop CSV / ZIP here</p>
+          <p><strong>Proteomics</strong> — drop XLSX, CSV, ZIP here</p>
           <p style="font-size:.75rem;margin-top:4px;">Matrix, DEP, GSEA results</p>
           <input type="file" id="fileInputPro" multiple accept=".csv,.xlsx,.xls,.zip,text/csv,application/zip">
         </label>
         <label class="upload-zone" id="dropZonePhos" data-omics="phospho">
           <span class="icon">🧪</span>
-          <p><strong>Phospho-proteomics</strong> — drop CSV / ZIP here</p>
+          <p><strong>Phospho-proteomics</strong> — drop XLSX, CSV, ZIP here</p>
           <p style="font-size:.75rem;margin-top:4px;">Phospho matrix, DE phospho-site, GSEA results</p>
           <input type="file" id="fileInputPhos" multiple accept=".csv,.xlsx,.xls,.zip,text/csv,application/zip">
         </label>
@@ -186,7 +201,6 @@ body{padding-bottom:24px;}
   <div id="panel-setup" class="panel">
     <div class="card">
       <h2>Sample / group setup</h2>
-      <p class="note">Sample columns auto-parsed as <code>group_replicate</code>. Adjust group assignments below if auto-detection is off.</p>
       <div id="setupBlocks"></div>
     </div>
   </div>
@@ -199,9 +213,6 @@ body{padding-bottom:24px;}
       <div class="row" style="margin-bottom:10px;">
         <label class="label" style="margin:0;">Omics:</label>
         <select id="qcOmics"><option value="proteomics">Proteomics</option><option value="phospho">Phospho</option></select>
-        <label class="label" style="margin:0;margin-left:14px;">CV cutoff (%):</label>
-        <input type="number" id="qcCVcut" value="20" step="1" min="0" max="500" style="width:70px;">
-        <span style="font-size:.72rem;color:var(--muted);">(reference line only — does not filter rows)</span>
         <label class="label" style="margin:0;margin-left:14px;"><input type="checkbox" id="qcPCAscale" checked> Scale features (z-score)</label>
         <label class="label" style="margin:0;margin-left:14px;"><input type="checkbox" id="pcaFlipX" checked> Flip PC1</label>
         <label class="label" style="margin:0;"><input type="checkbox" id="pcaFlipY" checked> Flip PC2</label>
@@ -215,10 +226,10 @@ body{padding-bottom:24px;}
       </div>
       <div class="stat-grid" id="qcStats"></div>
       <div class="grid-2">
-        <div class="chart-box"><h3>Sample log2 distribution</h3><canvas id="qcBox" height="240"></canvas></div>
+        <div class="chart-box" style="display:flex;flex-direction:column;overflow:hidden;"><h3>Sample log2 distribution</h3><div style="overflow-x:auto;overflow-y:hidden;width:100%;flex:1;min-height:0;"><div id="qcBoxInner" style="height:100%;width:100%;"><canvas id="qcBox" height="240"></canvas></div></div></div>
         <div class="chart-box"><h3 id="qcCVTitle">CV distribution (PG.CV)</h3><canvas id="qcCV" height="240"></canvas></div>
-        <div class="chart-box"><h3>Sample correlation (Pearson)</h3><div id="qcCorr"></div></div>
-        <div class="chart-box"><h3>PCA (top 2 PCs)</h3><canvas id="qcPCA" height="260"></canvas><div id="qcPCAlegend" class="legend-row"></div></div>
+        <div class="chart-box" style="display:flex;flex-direction:column;"><h3><button class="btn-sm dl-btn" onclick="_downloadCorr()" title="Download PNG">↓</button>Sample correlation (Pearson)</h3><div style="overflow:auto;flex:1;min-height:0;width:100%;"><div id="qcCorr"></div></div></div>
+        <div class="chart-box"><h3>PCA</h3><canvas id="qcPCA" height="260"></canvas><div id="qcPCAlegend" class="legend-row"></div></div>
       </div>
     </div>
   </div>
@@ -233,13 +244,13 @@ body{padding-bottom:24px;}
         <label class="label" style="margin:0;">Protein:</label>
         <input type="text" id="exprGene" list="exprGeneList" style="min-width:180px;height:32px;border:1px solid var(--line);border-radius:8px;padding:0 10px;font-size:.85rem;" placeholder="Search protein…">
         <datalist id="exprGeneList"></datalist>
-        <label class="label" style="margin:0;margin-left:14px;">Reference group:</label>
+        <label class="label" style="margin:0;margin-left:14px;">Control:</label>
         <select id="exprRef" style="min-width:120px;"></select>
         <label class="label" style="margin:0;margin-left:14px;">Values:</label>
         <select id="exprNorm">
           <option value="raw">Raw (log&#8322;)</option>
-          <option value="fold">Log&#8322;FC vs reference</option>
-          <option value="ratio">Ratio vs reference (linear fold-change)</option>
+          <option value="fold">Log&#8322;FC vs control</option>
+          <option value="ratio" selected>Ratio vs control (linear fold-change)</option>
         </select>
         <label class="label" style="margin:0;margin-left:14px;">Chart:</label>
         <select id="exprChartType">
@@ -273,7 +284,13 @@ body{padding-bottom:24px;}
         <label class="label" style="margin:0;">Omics:</label>
         <select id="diffOmics"><option value="proteomics">Proteomics</option><option value="phospho">Phospho</option><option value="phospho-corrected">Phospho (corrected by Proteomics)</option></select>
         <label class="label" style="margin:0;margin-left:10px;">Comparisons:</label>
-        <div class="cb-wrap" id="diffCompWrap" style="min-width:240px;"></div>
+        <div class="comp-dropdown" id="diffCompWrap">
+          <div class="comp-btn" id="diffCompBtn" onclick="_toggleCompDrop()">
+            <span class="c-lbl placeholder" id="diffCompLabel">Select…</span>
+            <span class="c-arrow">▼</span>
+          </div>
+          <div class="comp-panel" id="diffCompPanel"></div>
+        </div>
       </div>
       <div class="threshold-row">
         <label>|Log2FC| ≥ <input type="number" id="thLogFC" value="1" step="0.1" min="0"></label>
@@ -287,30 +304,29 @@ body{padding-bottom:24px;}
             <option value="intersection">Intersection (sig in all)</option>
           </select>
         </label>
+        <button class="btn-sm" style="font-weight:normal;" onclick="_volcLabelToggle()" title="Label / clear significant gene labels">Label sig.</button>
         <label id="diffPairedRow" style="display:none;font-size:.82rem;color:var(--ink);display:none;align-items:center;gap:6px;cursor:pointer;">
           <input type="checkbox" id="diffPairedOnly"> Hide unpaired sites
         </label>
       </div>
       <div id="diffCorrWarn" class="warn-box" style="display:none;"></div>
       <div id="diffPColWarn" class="warn-box" style="display:none;"></div>
-      <div class="stat-grid" id="diffStats"></div>
       <div class="row" style="margin-top:14px;margin-bottom:14px;flex-wrap:wrap;gap:6px;">
         <span class="label" style="margin:0;">Highlight genes:</span>
-        <input type="text" id="diffHighlightInput" list="diffHighlightList" placeholder="Type gene…" style="width:160px;height:28px;font-size:.8rem;">
+        <input type="text" id="diffHighlightInput" list="diffHighlightList" placeholder="Type gene…" style="width:160px;font-size:.8rem;">
         <datalist id="diffHighlightList"></datalist>
-        <button id="diffHighlightAdd" class="btn-sm" style="height:28px;padding:3px 10px;" title="Add gene">＋</button>
-        <button id="diffHighlightClear" class="btn-sm btn-ghost" style="height:28px;padding:3px 10px;">Clear</button>
+        <button id="diffHighlightAdd" class="btn-sm" title="Add gene">＋</button>
+        <button id="diffHighlightClear" class="btn-sm btn-ghost">Clear</button>
         <div id="diffHighlightTags" style="display:flex;flex-wrap:wrap;gap:3px;"></div>
       </div>
       <div class="grid-2" style="margin-bottom:14px;">
-        <div class="chart-box">
+        <div class="chart-box" style="align-self:start;">
           <h3>Volcano (log2FC vs −log10 P)</h3>
-          <canvas id="diffVolcano" height="260">
-          <div class="legend-row" id="diffVolLegend"></div>
+          <div id="diffVolcanoWrap" style="position:relative;height:260px;"><canvas id="diffVolcano"></canvas></div>
         </div>
-        <div class="chart-box">
+        <div class="chart-box" style="padding-left:20px;padding-right:20px;">
           <h3>Up / Down counts</h3>
-          <canvas id="diffCounts" height="260"></canvas>
+          <div id="diffCountsWrap" style="height:260px;"><canvas id="diffCounts"></canvas></div>
         </div>
       </div>
       <div class="chart-box">
@@ -324,7 +340,7 @@ body{padding-bottom:24px;}
   <!-- ===== 5. HEATMAP ===== -->
   <div id="panel-hm" class="panel">
     <div class="card">
-      <h2>Expression heatmap</h2>
+      <h2><button class="btn-sm dl-btn" onclick="_downloadHm()" title="Download PNG">↓</button>Expression heatmap</h2>
       <div class="src" id="hmSrc"></div>
       <div class="row" style="margin-bottom:8px;">
         <label class="label" style="margin:0;">Omics:</label>
@@ -495,14 +511,20 @@ body{padding-bottom:24px;}
 
       <div class="row" style="margin-bottom:8px;">
         <label class="label" style="margin:0;">Comparisons:</label>
-        <div class="cb-wrap" id="gseaCompWrap" style="min-width:240px;"></div>
+        <div class="comp-dropdown" id="gseaCompWrap">
+          <div class="comp-btn" id="gseaCompBtn" onclick="_toggleGseaCompDrop()">
+            <span class="c-lbl placeholder" id="gseaCompLabel">Select…</span>
+            <span class="c-arrow">▼</span>
+          </div>
+          <div class="comp-panel" id="gseaCompPanel"></div>
+        </div>
         <label class="label" style="margin:0;margin-left:8px;">Collection:</label>
         <select id="gseaCollection"><option value="ALL">All</option></select>
         <label class="label" style="margin:0;">p.adj ≤</label>
         <input type="number" id="gseaP" value="0.25" step="0.01" min="0" max="1" style="width:80px;">
         <label class="label" style="margin:0;">Top N</label>
         <input type="number" id="gseaTopN" value="20" min="5" max="100" style="width:80px;">
-        <button class="btn-sm" id="gseaExport" style="margin-left:6px;padding:5px 11px;">Export CSV</button>
+        <button class="btn-sm" id="gseaExport" style="margin-left:6px;">Export CSV</button>
       </div>
       <div class="row" style="margin-bottom:8px;">
         <label class="label" style="margin:0;">Search:</label><input type="text" id="gseaSearch" placeholder="Search pathway…" style="width:180px;">
@@ -514,8 +536,8 @@ body{padding-bottom:24px;}
       </div>
       <div id="gtab-bar" class="gtab-pane">
         <div style="display:flex;flex-direction:column;gap:18px;padding:8px 4px;align-items:center;">
-          <div class="chart-box" id="gseaBarBox" style="overflow:visible;padding:16px 20px;width:fit-content;"><canvas id="gseaBar" style="display:none;"></canvas><div id="gseaBarDom"></div></div>
-          <div class="chart-box" style="overflow:visible;padding:16px 20px;width:fit-content;"><div class="heatmap-wrap" id="gseaHm" style="overflow:visible;max-width:none;"></div></div>
+          <div class="chart-box" id="gseaBarBox" style="overflow:visible;padding:16px 20px;width:fit-content;"><h3>NES bar</h3><canvas style="display:none;"></canvas><div id="gseaBarDom"></div></div>
+          <div class="chart-box" style="overflow:visible;padding:16px 20px;width:fit-content;"><h3 style="margin-bottom:6px;">NES heatmap</h3><div class="heatmap-wrap" id="gseaHm" style="overflow:visible;max-width:none;"></div></div>
         </div>
       </div>
       <div id="gtab-bubble" class="gtab-pane" style="display:none;">
@@ -553,7 +575,7 @@ body{padding-bottom:24px;}
 
       </div>
       <p class="note">Each dot is one phosphosite. X = protein Log2FC of its parent gene; Y = phospho Log2FC. Sites without matching protein data are skipped.</p>
-      <div class="chart-box" style="max-width:620px;"><canvas id="crossScat" height="320"></canvas></div>
+      <div class="chart-box" style="max-width:620px;"><h3><button class="btn-sm dl-btn" onclick="_dlChart('crossScat','Cross-omics_scatter','h3')" title="Download PNG">↓</button>Protein vs phospho Log2FC</h3><canvas id="crossScat" height="320"></canvas></div>
       <div class="stat-grid" id="crossStats" style="margin-top:10px;"></div>
     </div>
   </div>
@@ -602,6 +624,7 @@ const GSEA_PALETTE=['#e05c73','#f0883e','#f5c518','#4caf85','#2196a8','#8e44ad',
 const $=id=>document.getElementById(id);
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmt=(x,d=3)=>Number.isFinite(x)?Number(x).toPrecision(d):'';
+const fmtP=(x,d=2)=>!Number.isFinite(x)?'':x.toExponential(d).replace(/e([+-])(\d)$/,'e$10$2');
 const log10=x=>Math.log(x)/Math.LN10;
 const safeNum=v=>{const n=parseFloat(v);return Number.isFinite(n)?n:null;};
 function pickGene(g){if(!g)return '';return String(g).split(';')[0];}
@@ -856,23 +879,23 @@ function drawReadinessTable(){
       cell(!!p.matrix,  p.matrix  ? p.matrix.name  : 'need matrix CSV'),
       cell(!!ph.matrix, ph.matrix ? ph.matrix.name : 'need matrix CSV')],
     ['Expression',
-      cell(!!p.matrix,  p.matrix  ? 'matrix ✓' : 'need matrix CSV'),
-      cell(!!ph.matrix, ph.matrix ? 'matrix ✓' : 'need matrix CSV')],
+      cell(!!p.matrix,  p.matrix  ? 'matrix' : 'need matrix CSV'),
+      cell(!!ph.matrix, ph.matrix ? 'matrix' : 'need matrix CSV')],
     ['Differential',
       cell(!!p.dep,  p.dep  ? `${p.dep.name} · ${cmpsP.length} comparisons`  : 'need DEP CSV'),
       cell(!!ph.dep, ph.dep ? `${ph.dep.name} · ${cmpsPh.length} comparisons`: 'need DEP CSV')],
     ['Heatmap',
-      cell(!!p.matrix&&!!p.dep,   p.matrix&&p.dep   ? 'matrix + DEP ✓' : 'need matrix + DEP'),
-      cell(!!ph.matrix&&!!ph.dep, ph.matrix&&ph.dep ? 'matrix + DEP ✓' : 'need matrix + DEP')],
+      cell(!!p.matrix&&!!p.dep,   p.matrix&&p.dep   ? 'matrix + DEP' : 'need matrix + DEP'),
+      cell(!!ph.matrix&&!!ph.dep, ph.matrix&&ph.dep ? 'matrix + DEP' : 'need matrix + DEP')],
     ['GSEA (ready)',
-      cell(Object.keys(p.gsea).length>0,  Object.keys(p.gsea).length>0  ? `${Object.keys(p.gsea).length} file(s) ✓` : 'need GSEA CSV'),
-      cell(Object.keys(ph.gsea).length>0, Object.keys(ph.gsea).length>0 ? `${Object.keys(ph.gsea).length} file(s) ✓` : 'need GSEA CSV')],
+      cell(Object.keys(p.gsea).length>0,  Object.keys(p.gsea).length>0  ? `${Object.keys(p.gsea).length} file(s)` : 'need GSEA CSV'),
+      cell(Object.keys(ph.gsea).length>0, Object.keys(ph.gsea).length>0 ? `${Object.keys(ph.gsea).length} file(s)` : 'need GSEA CSV')],
     ['GSEA (re-run)',
-      cell(!!p.dep&&gmtN>0,  p.dep&&gmtN>0   ? `DEP ✓ · ${gmtN} sets loaded` : !p.dep  ? 'need DEP CSV' : 'need GMT'),
-      cell(!!ph.dep&&gmtN>0, ph.dep&&gmtN>0  ? `DEP ✓ · ${gmtN} sets loaded` : !ph.dep ? 'need DEP CSV' : 'need GMT')],
+      cell(!!p.dep&&gmtN>0,  p.dep&&gmtN>0   ? `DEP · ${gmtN} sets loaded` : !p.dep  ? 'need DEP CSV' : 'need GMT'),
+      cell(!!ph.dep&&gmtN>0, ph.dep&&gmtN>0  ? `DEP · ${gmtN} sets loaded` : !ph.dep ? 'need DEP CSV' : 'need GMT')],
     ['Cross-omics',
-      cell(!!p.dep,  p.dep  ? 'proteomics DEP ✓' : 'need proteomics DEP'),
-      cell(!!ph.dep, ph.dep ? 'phospho DEP ✓'    : 'need phospho DEP')],
+      cell(!!p.dep,  p.dep  ? 'proteomics DEP' : 'need proteomics DEP'),
+      cell(!!ph.dep, ph.dep ? 'phospho DEP'    : 'need phospho DEP')],
   ];
 
   // uploaded files split by omics + unknown
@@ -1204,7 +1227,7 @@ function refreshComparisonControls(){
   const omicsRaw=$('diffOmics')?.value||'proteomics';
   const omics=omicsRaw==='phospho-corrected'?'phospho':omicsRaw;
   const cmps=getComparisons(omics);
-  const wrap=$('diffCompWrap');if(wrap){wrap.innerHTML=cmps.map((c,i)=>`<label class="cb-item"><input type="checkbox" value="${esc(c)}" ${i<2?'checked':''}> ${esc(c)}</label>`).join('')||'<span style="color:var(--muted);font-size:.8rem;">no DEP loaded</span>';}
+  const panel=$('diffCompPanel');if(panel){panel.innerHTML=cmps.length?`<label style="font-weight:600;border-bottom:1px solid var(--line);padding-bottom:5px;margin-bottom:2px;"><input type="checkbox" data-all="1"> All</label>`+cmps.map((c,i)=>`<label><input type="checkbox" value="${esc(c)}" ${i===0?'checked':''}> ${esc(c)}</label>`).join(''):'<span style="color:var(--muted);font-size:.8rem;padding:6px 13px;display:block;">no DEP loaded</span>';}_updateCompBtn();
   // Heatmap comparison
   const hmS=$('hmComp');if(hmS){hmS.innerHTML=cmps.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');}
   // GSEA comparisons — key encodes omics so pro/phos with the same comparison name never mix.
@@ -1212,12 +1235,16 @@ function refreshComparisonControls(){
     ...Object.keys(STATE.proteomics.gsea).map(c=>({omics:'proteomics',comp:c,tag:'Pro'})),
     ...Object.keys(STATE.phospho.gsea   ).map(c=>({omics:'phospho',   comp:c,tag:'Phos'}))
   ];
-  const gw=$('gseaCompWrap');
-  if(gw){
-    gw.innerHTML=gseaItems.map((it,i)=>{
-      const key=`${it.omics}::${it.comp}`;
-      return `<label class="cb-item"><input type="checkbox" value="${esc(key)}" ${i<3?'checked':''}> ${esc(it.comp)} <span style="color:var(--muted);font-size:.7rem;">[${it.tag}]</span></label>`;
-    }).join('')||'<span style="color:var(--muted);font-size:.8rem;">no GSEA loaded</span>';
+  const gseaPanel=$('gseaCompPanel');
+  if(gseaPanel){
+    gseaPanel.innerHTML=gseaItems.length?
+      `<label style="font-weight:600;border-bottom:1px solid var(--line);padding-bottom:5px;margin-bottom:2px;"><input type="checkbox" data-all="1"> All</label>`
+      +gseaItems.map((it,i)=>{
+        const key=`${it.omics}::${it.comp}`;
+        return `<label><input type="checkbox" value="${esc(key)}" ${i===0?'checked':''}> ${esc(it.comp)} <span style="color:var(--muted);font-size:.7rem;">[${it.tag}]</span></label>`;
+      }).join('')
+      :'<span style="color:var(--muted);font-size:.8rem;padding:6px 13px;display:block;">no GSEA loaded</span>';
+    _updateGseaCompBtn();
   }
   // GSEA collections — count unique pathway IDs per collection prefix
   const _collMap={};
@@ -1264,6 +1291,7 @@ function renderExpr(){
   const prevRef=refEl.value;
   refEl.innerHTML=allGroups.length?allGroups.map(g=>`<option value="${esc(g)}">${esc(g)}</option>`).join(''):'<option value="">— upload matrix first —</option>';
   if(allGroups.includes(prevRef))refEl.value=prevRef;
+  else{const _ntc=allGroups.find(g=>g.toUpperCase().includes('NTC'));if(_ntc)refEl.value=_ntc;else if(allGroups.length)refEl.value=allGroups[0];}
   if(!_exprInited){
     _exprInited=true;
     geneEl&&geneEl.addEventListener('input',()=>{_exprPopulateSites();_exprDrawCharts();});
@@ -1315,6 +1343,7 @@ function _exprDrawSingle(canvasId,omics,rowFilter,yLabel){
   if(STATE.charts[canvasId]){STATE.charts[canvasId].destroy();delete STATE.charts[canvasId];}
   const{groupOrder,points}=_exprGetData(omics,rowFilter);
   const chartType=$('exprChartType')?.value||'bar';
+  const norm=$('exprNorm')?.value||'raw';
   if(!points.length){
     ctx.clearRect(0,0,ctx.canvas.width,ctx.canvas.height);
     ctx.save();ctx.fillStyle='#999';ctx.font='13px sans-serif';ctx.textAlign='center';
@@ -1345,7 +1374,7 @@ function _exprDrawSingle(canvasId,omics,rowFilter,yLabel){
     }};
     const allV=stats.flatMap(s=>[s.m-s.se,s.m+s.se]).filter(Number.isFinite);
     const pad=(Math.max(...allV)-Math.min(...allV))*0.15||0.5;
-    STATE.charts[canvasId]=new Chart(ctx,{type:'bar',data:{labels:stats.map(s=>s.g),datasets:[{data:stats.map(s=>s.m),backgroundColor:stats.map(s=>groupColor[s.g]+'cc'),borderColor:stats.map(s=>groupColor[s.g]),borderWidth:1,barPercentage:0.55,categoryPercentage:0.8}]},options:{responsive:true,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>{const s=stats[c.dataIndex];return[`mean: ${fmt(s.m,4)}`,`SE: ${fmt(s.se,3)}`,`n = ${s.n}`];}}}},scales:{x:{ticks:{maxRotation:45,minRotation:0}},y:{title:{display:true,text:yLabel},min:Math.min(...allV)-pad,max:Math.max(...allV)+pad}}},plugins:[errPlugin]});
+    STATE.charts[canvasId]=new Chart(ctx,{type:'bar',data:{labels:stats.map(s=>s.g),datasets:[{data:stats.map(s=>s.m),backgroundColor:stats.map(s=>groupColor[s.g]+'cc'),borderColor:stats.map(s=>groupColor[s.g]),borderWidth:1,barPercentage:0.55,categoryPercentage:0.8}]},options:{responsive:true,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>{const s=stats[c.dataIndex];return[`mean: ${fmt(s.m,4)}`,`SE: ${fmt(s.se,3)}`,`n = ${s.n}`];}}}},scales:{x:{ticks:{maxRotation:45,minRotation:0}},y:{title:{display:true,text:yLabel},min:norm==='ratio'?0:Math.min(...allV)-pad,max:Math.max(...allV)+pad}}},plugins:[errPlugin]});
   } else if(chartType==='box'){
     const boxStats=groupOrder.map(g=>{
       const vals=points.filter(p=>p.group===g).map(p=>p.val).filter(Number.isFinite).sort((a,b)=>a-b);
@@ -1378,14 +1407,14 @@ function _exprDrawSingle(canvasId,omics,rowFilter,yLabel){
         c.restore();
       });
     }};
-    STATE.charts[canvasId]=new Chart(ctx,{type:'bar',data:{labels:boxStats.map(b=>b.g),datasets:[{data:boxStats.map(b=>[b.q1,b.q3]),backgroundColor:boxStats.map(b=>groupColor[b.g]+'cc'),borderColor:boxStats.map(b=>groupColor[b.g]),borderWidth:1,barPercentage:0.5,categoryPercentage:0.8}]},options:{responsive:true,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>{const b=boxStats[c.dataIndex];return[`n=${b.n}`,`min(whisker):${fmt(b.min,4)}`,`Q1:${fmt(b.q1,4)}`,`median:${fmt(b.med,4)}`,`Q3:${fmt(b.q3,4)}`,`max(whisker):${fmt(b.max,4)}`];}}}},scales:{x:{ticks:{maxRotation:45,minRotation:0}},y:{title:{display:true,text:yLabel},min:Math.min(...allV)-pad,max:Math.max(...allV)+pad}}},plugins:[boxPlugin]});
+    STATE.charts[canvasId]=new Chart(ctx,{type:'bar',data:{labels:boxStats.map(b=>b.g),datasets:[{data:boxStats.map(b=>[b.q1,b.q3]),backgroundColor:boxStats.map(b=>groupColor[b.g]+'cc'),borderColor:boxStats.map(b=>groupColor[b.g]),borderWidth:1,barPercentage:0.5,categoryPercentage:0.8}]},options:{responsive:true,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>{const b=boxStats[c.dataIndex];return[`n=${b.n}`,`min(whisker):${fmt(b.min,4)}`,`Q1:${fmt(b.q1,4)}`,`median:${fmt(b.med,4)}`,`Q3:${fmt(b.q3,4)}`,`max(whisker):${fmt(b.max,4)}`];}}}},scales:{x:{ticks:{maxRotation:45,minRotation:0}},y:{title:{display:true,text:yLabel},min:norm==='ratio'?0:Math.min(...allV)-pad,max:Math.max(...allV)+pad}}},plugins:[boxPlugin]});
   } else {
     const jitter=0.15;
     const rng=s=>{let h=0;for(const c of s)h=Math.imul(31,h)+c.charCodeAt(0)|0;return((h>>>0)/4294967296-.5)*2*jitter;};
     const datasets=groupOrder.map((g,gi)=>({label:g,backgroundColor:groupColor[g]+'cc',pointRadius:5,pointHoverRadius:7,data:points.filter(p=>p.group===g).map(p=>({x:gi+rng(p.sample),y:p.val,sample:p.sample}))}));
     const allY=points.map(p=>p.val).filter(Number.isFinite);
     const pad=(Math.max(...allY)-Math.min(...allY))*0.1||0.5;
-    STATE.charts[canvasId]=new Chart(ctx,{type:'scatter',data:{datasets},options:{responsive:true,plugins:{legend:{display:groupOrder.length<=8},tooltip:{callbacks:{label:c=>`${c.raw.sample}: ${fmt(c.raw.y,4)}`}}},scales:{x:{type:'linear',min:-0.5,max:groupOrder.length-0.5,ticks:{stepSize:1,callback:v=>Number.isInteger(v)?(groupOrder[v]||''):null},grid:{display:false}},y:{title:{display:true,text:yLabel},min:Math.min(...allY)-pad,max:Math.max(...allY)+pad}}}});
+    STATE.charts[canvasId]=new Chart(ctx,{type:'scatter',data:{datasets},options:{responsive:true,plugins:{legend:{display:groupOrder.length<=8},tooltip:{callbacks:{label:c=>`${c.raw.sample}: ${fmt(c.raw.y,4)}`}}},scales:{x:{type:'linear',min:-0.5,max:groupOrder.length-0.5,ticks:{stepSize:1,callback:v=>Number.isInteger(v)?(groupOrder[v]||''):null},grid:{display:false}},y:{title:{display:true,text:yLabel},min:norm==='ratio'?0:Math.min(...allY)-pad,max:Math.max(...allY)+pad}}}});
   }
 }
 function _exprDrawProChart(){
@@ -1406,7 +1435,6 @@ function _exprDrawPhosChart(){
  * ===========================================================*/
 $('qcOmics').addEventListener('change',renderQC);
 $('qcPCAscale').addEventListener('change',renderQC);
-{const e=$('qcCVcut');if(e)e.addEventListener('input',renderQC);}
 ['pcaFlipX','pcaFlipY','pcaSwapXY'].forEach(id=>{const e=$(id);if(e)e.addEventListener('change',renderQC);});
 {const e=$('pcaCircleStyle');if(e)e.addEventListener('change',renderQC);}
 ['diffOmics','hmOmics'].forEach(id=>{const e=$(id);if(e)e.addEventListener('change',updateAllSrc);});
@@ -1443,7 +1471,7 @@ function renderQC(){
   });
   drawBox('qcBox',samples,boxData,omics);
   // CV histogram + coverage stat
-  const cvCut=parseFloat($('qcCVcut')?.value||'20');
+  const cvCut=20;
   const totalRows=f.rows.length;
   const cvsRaw=f.rows.map(r=>safeNum(r['PG.CV'])).filter(Number.isFinite);
   const hasCV=cvsRaw.length>0;
@@ -1451,27 +1479,42 @@ function renderQC(){
   const covPct=totalRows?Math.round(cvsRaw.length/totalRows*100):0;
   const cvTitle=$('qcCVTitle');
   if(cvTitle){
+    const _cvDl=cvTitle.querySelector('.dl-btn');
     cvTitle.textContent = hasCV
       ? `CV distribution (PG.CV)  —  coverage: ${covPct}% rows (${cvsRaw.length}/${totalRows})`
       : 'CV distribution (PG.CV)';
+    if(_cvDl) cvTitle.insertBefore(_cvDl, cvTitle.firstChild);
   }
   drawHist('qcCV',cvs,'CV %',cvCut,hasCV);
   // Correlation heatmap
   drawCorrHeatmap('qcCorr',samples,sampleVals);
   // PCA
   drawPCA('qcPCA','qcPCAlegend',omics,samples,sampleVals);
+  _syncCorrHeight();
 }
 
+function _syncCorrHeight(){
+  const corrBox=$('qcCorr')?.parentElement?.parentElement;
+  const pcaBox=$('qcPCA')?.parentElement;
+  if(!corrBox||!pcaBox)return;
+  corrBox.style.height='1px';                              // collapse → invalidate layout
+  const pcaH=pcaBox.getBoundingClientRect().height;        // force sync reflow → PCA natural height
+  corrBox.style.height=pcaH>10?pcaH+'px':'';              // apply (no paint flash)
+}
 function drawBox(canvasId,labels,boxes,omics){
-  const ctx=$(canvasId).getContext('2d');
-  if(STATE.charts[canvasId])STATE.charts[canvasId].destroy();
+  if(STATE.charts[canvasId]){STATE.charts[canvasId].destroy();delete STATE.charts[canvasId];}
+  const _cvs=$(canvasId);
+  const _n=labels.length;
+  const _inner=$(canvasId+'Inner');
+  if(_inner){_inner.style.minWidth=(_n*40)+'px';}
+  const ctx=_cvs.getContext('2d');
   const groups=getGroupList(omics);
   const groupColor={};groups.forEach((g,i)=>groupColor[g]=COL_PALETTE[i%COL_PALETTE.length]);
   // IQR (q1-q3) as the only data series; whiskers, median, outliers drawn by plugins
   const datasets=[
     {label:'IQR (q1–q3)',data:boxes.map(b=>[b.q1,b.q3]),
       backgroundColor:labels.map(s=>groupColor[getGroupOf(omics,s)]+'cc'),borderColor:'#222',borderWidth:1,
-      barPercentage:0.55,categoryPercentage:0.85}
+      borderSkipped:false,barPercentage:0.55,categoryPercentage:0.85}
   ];
   const yMin=Math.min(...boxes.flatMap(b=>[b.min, ...(b.outliers||[])]));
   const yMax=Math.max(...boxes.flatMap(b=>[b.max, ...(b.outliers||[])]));
@@ -1517,7 +1560,7 @@ function drawBox(canvasId,labels,boxes,omics){
     }
   };
   STATE.charts[canvasId]=new Chart(ctx,{type:'bar',data:{labels,datasets},options:{
-    responsive:true,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>{const b=boxes[c.dataIndex];return [`n: ${b.n}`,`min(whisker):${fmt(b.min,3)}`,`q1:${fmt(b.q1,3)}`,`median:${fmt(b.med,3)}`,`q3:${fmt(b.q3,3)}`,`max(whisker):${fmt(b.max,3)}`,`outliers: ${b.outliers?b.outliers.length:0}`];}}}},
+    responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>{const b=boxes[c.dataIndex];return [`n: ${b.n}`,`min(whisker):${fmt(b.min,3)}`,`q1:${fmt(b.q1,3)}`,`median:${fmt(b.med,3)}`,`q3:${fmt(b.q3,3)}`,`max(whisker):${fmt(b.max,3)}`,`outliers: ${b.outliers?b.outliers.length:0}`];}}}},
     scales:{x:{ticks:{maxRotation:60,minRotation:60}},y:{title:{display:true,text:'log2 quantity'},min:yMin-yPad,max:yMax+yPad}}
   },plugins:[boxPlugin]});
 }
@@ -1581,7 +1624,11 @@ function drawCorrHeatmap(divId,samples,vals){
   }
   let rMin=off.length?Math.min(...off):0, rMax=off.length?Math.max(...off):1;
   if(rMax-rMin<1e-6){rMin-=0.05;rMax+=0.05;}
-  const grid=document.createElement('div');grid.className='hm-grid';grid.style.gridTemplateColumns=`auto repeat(${n},minmax(28px,1fr))`;
+  const grid=document.createElement('div');grid.className='hm-grid';
+  const _cw=Math.max(34,Math.min(70,Math.floor(360/n)));
+  const _corrHdrH=Math.max(50,Math.min(160,samples.reduce((m,s)=>Math.max(m,s.length),0)*8+12));
+  grid.style.gridTemplateColumns=`auto repeat(${n},${_cw}px)`;
+  grid.style.gridTemplateRows=`${_corrHdrH}px`;
   grid.appendChild(Object.assign(document.createElement('div'),{className:'hm-rowlbl',textContent:''}));
   samples.forEach(s=>{const c=document.createElement('div');c.className='hm-collbl';c.textContent=s;grid.appendChild(c);});
   for(let i=0;i<n;i++){
@@ -1675,6 +1722,7 @@ function drawPCA(canvasId,legendId,omics,samples,vals){
       if(circStyle==='none')return;
       const c=chart.ctx,{scales:{x,y}}=chart;
       groups.forEach((g,gi)=>{
+        if(chart.getDatasetMeta(gi).hidden)return;
         const gp=pts.filter(p=>p.group===g);
         if(gp.length<2)return;
         const col=COL_PALETTE[gi%COL_PALETTE.length];
@@ -1715,12 +1763,41 @@ function drawPCA(canvasId,legendId,omics,samples,vals){
       });
     }
   };
+  // ── Axis bounds expanded to fully contain circles/ellipses ──
+  let axXmin=xmin-xPad,axXmax=xmax+xPad,axYmin=ymin-yPad,axYmax=ymax+yPad;
+  if(circStyle!=='none'){
+    const chi2=5.991;
+    groups.forEach(g=>{
+      const gp=pts.filter(p=>p.group===g);if(gp.length<2)return;
+      const gxs=gp.map(p=>p.x),gys=gp.map(p=>p.y);
+      const mx=_meanArr2(gxs),my=_meanArr2(gys);
+      let exX,exY;
+      if(circStyle==='ellipse'){
+        const sxx=_cov2(gxs,gxs),syy=_cov2(gys,gys),sxy=_cov2(gxs,gys);
+        const tr=sxx+syy,det=sxx*syy-sxy*sxy;
+        const disc=Math.sqrt(Math.max(0,tr*tr/4-det));
+        const l1=tr/2+disc,l2=tr/2-disc;if(l1<=0||l2<=0)return;
+        const angle=Math.atan2(l1-sxx,sxy)||0;
+        const a=Math.sqrt(chi2*l1),b=Math.sqrt(chi2*l2);
+        exX=Math.sqrt(a*a*Math.cos(angle)**2+b*b*Math.sin(angle)**2);
+        exY=Math.sqrt(a*a*Math.sin(angle)**2+b*b*Math.cos(angle)**2);
+      } else {
+        exX=exY=Math.max(...gp.map(p=>Math.sqrt((p.x-mx)**2+(p.y-my)**2)));
+      }
+      axXmin=Math.min(axXmin,mx-exX);axXmax=Math.max(axXmax,mx+exX);
+      axYmin=Math.min(axYmin,my-exY);axYmax=Math.max(axYmax,my+exY);
+    });
+    const epX=(axXmax-axXmin)*0.05||0.3,epY=(axYmax-axYmin)*0.05||0.3;
+    axXmin-=epX;axXmax+=epX;axYmin-=epY;axYmax+=epY;
+    const fr=(axXmax-axXmin)/(axYmax-axYmin);
+    if(Number.isFinite(fr)&&fr>0)aspect=fr;
+  }
   STATE.charts[canvasId]=new Chart(ctx,{type:'scatter',data:{datasets},options:{
     responsive:true,maintainAspectRatio:true,aspectRatio:Math.max(0.6,Math.min(2.4,aspect)),
     plugins:{legend:{position:'bottom'},tooltip:{callbacks:{label:c=>`${c.raw.sample}  (${fmt(c.raw.x,3)}, ${fmt(c.raw.y,3)})`}}},
     scales:{
-      x:{title:{display:true,text:labX},min:xmin-xPad,max:xmax+xPad},
-      y:{title:{display:true,text:labY},min:ymin-yPad,max:ymax+yPad}
+      x:{title:{display:true,text:labX},min:axXmin,max:axXmax},
+      y:{title:{display:true,text:labY},min:axYmin,max:axYmax}
     }
   },plugins:[pcaGroupPlugin]});
   $(legendId).innerHTML=`Total variance shown: <b>${fmt(var1+var2,3)}%</b> · features used: ${keep.length}/${nF}`;
@@ -1732,15 +1809,21 @@ function drawPCA(canvasId,legendId,omics,samples,vals){
 // auto-refresh on any parameter change
 ['diffOmics','thPtype','diffSetMode'].forEach(id=>{const e=$(id);if(e)e.addEventListener('change',renderDiff);});
 {const e=$('diffPairedOnly');if(e)e.addEventListener('change',renderDiff);}
-['thLogFC','thP'].forEach(id=>{const e=$(id);if(e)e.addEventListener('input',renderDiff);});
-$('diffCompWrap').addEventListener('change',e=>{if(e.target.matches('input[type="checkbox"]'))renderDiff();});
+let _diffTimer=null;
+['thLogFC','thP'].forEach(id=>{const e=$(id);if(e)e.addEventListener('input',()=>{clearTimeout(_diffTimer);_diffTimer=setTimeout(renderDiff,120);});});
+$('diffCompWrap').addEventListener('change',e=>{if(e.target.matches('input[type="checkbox"]')){if(e.target.dataset.all){$('diffCompPanel')?.querySelectorAll('input:not([data-all])').forEach(i=>i.checked=e.target.checked);}}_updateCompBtn();if(!e.target.dataset.all){clearTimeout(_diffTimer);_diffTimer=setTimeout(renderDiff,80);}else{clearTimeout(_diffTimer);_diffTimer=setTimeout(renderDiff,80);}});
+function _toggleCompDrop(){const btn=$('diffCompBtn'),panel=$('diffCompPanel');if(!btn||!panel)return;btn.classList.toggle('open');panel.classList.toggle('open');}
+function _updateCompBtn(){const panel=$('diffCompPanel');if(!panel)return;const allChk=panel.querySelector('input[data-all]');const compInputs=[...panel.querySelectorAll('input:not([data-all])')];const checked=compInputs.filter(i=>i.checked);if(allChk){allChk.checked=checked.length===compInputs.length&&compInputs.length>0;allChk.indeterminate=checked.length>0&&checked.length<compInputs.length;}const lbl=$('diffCompLabel');if(!lbl)return;if(checked.length===0){lbl.textContent='Select…';lbl.className='c-lbl placeholder';}else if(checked.length===compInputs.length){lbl.textContent='All';lbl.className='c-lbl';}else{lbl.textContent=checked.map(i=>i.value).join(', ');lbl.className='c-lbl';}}
+function _toggleGseaCompDrop(){const btn=$('gseaCompBtn'),panel=$('gseaCompPanel');if(!btn||!panel)return;btn.classList.toggle('open');panel.classList.toggle('open');}
+function _updateGseaCompBtn(){const panel=$('gseaCompPanel');if(!panel)return;const allChk=panel.querySelector('input[data-all]');const compInputs=[...panel.querySelectorAll('input:not([data-all])')];const checked=compInputs.filter(i=>i.checked);if(allChk){allChk.checked=checked.length===compInputs.length&&compInputs.length>0;allChk.indeterminate=checked.length>0&&checked.length<compInputs.length;}const lbl=$('gseaCompLabel');if(!lbl)return;if(checked.length===0){lbl.textContent='Select…';lbl.className='c-lbl placeholder';}else if(checked.length===compInputs.length){lbl.textContent='All';lbl.className='c-lbl';}else{lbl.textContent=checked.map(i=>i.value.split('::')[1]||i.value).join(', ');lbl.className='c-lbl';}}
+document.addEventListener('click',e=>{const dw=$('diffCompWrap');if(dw&&!dw.contains(e.target)){$('diffCompBtn')?.classList.remove('open');$('diffCompPanel')?.classList.remove('open');}const gw=$('gseaCompWrap');if(gw&&!gw.contains(e.target)){$('gseaCompBtn')?.classList.remove('open');$('gseaCompPanel')?.classList.remove('open');}});
 $('diffSearch').addEventListener('input',renderDiffTable);
 $('diffExport').addEventListener('click',()=>{
   const rows=lastDiffRows||[];if(!rows.length)return;
   downloadCSV(rows,'differential_filtered.csv');
 });
 let lastDiffRows=[];
-function getSelectedComparisons(wrapId){return [...document.querySelectorAll(`#${wrapId} input:checked`)].map(i=>i.value);}
+function getSelectedComparisons(wrapId){return [...document.querySelectorAll(`#${wrapId} input:checked`)].filter(i=>!i.dataset.all).map(i=>i.value);}
 // Inline Chart.js plugin: dashed threshold lines + labels for volcano plots.
 function volcanoThresholdPlugin(lfcCut,pCut,pcol){
   return {
@@ -1765,10 +1848,12 @@ function volcanoThresholdPlugin(lfcCut,pCut,pcol){
       // labels
       ctx.setLineDash([]); ctx.fillStyle='#666'; ctx.font='10px -apple-system,Segoe UI,sans-serif';
       ctx.textAlign='right'; ctx.textBaseline='bottom';
-      if(py>=top&&py<=bottom)ctx.fillText(`${({'adj.P.Val':'p.adj','P.Value':'p-val'}[pcol]||pcol)} = ${pCut}  (−log10 = ${yCut.toFixed(2)})`,right-4,py-2);
+      if(py>=top&&py<=bottom)ctx.fillText(`${({'adj.P.Val':'p.adj','P.Value':'p-val'}[pcol]||pcol)} = ${pCut}`,right-4,py-2);
       ctx.textAlign='left'; ctx.textBaseline='top';
       const pxR=x.getPixelForValue(lfcCut);
-      if(pxR>=left&&pxR<=right)ctx.fillText(` |Log2FC| = ${lfcCut}`,pxR+2,top+2);
+      const pxL=x.getPixelForValue(-lfcCut);
+      if(pxR>=left&&pxR<=right)ctx.fillText(` log2FC=${lfcCut}  (FC=${Math.pow(2,lfcCut).toFixed(2)})`,pxR+2,top+2);
+      if(pxL>=left&&pxL<=right){ctx.textAlign='right';ctx.fillText(`log2FC=-${lfcCut}  (FC=${Math.pow(2,-lfcCut).toFixed(2)}) `,pxL-2,top+2);}
       ctx.restore();
     }
   };
@@ -1805,6 +1890,92 @@ function updateDiffHighlightList(){
   if(clr)clr.addEventListener('click',()=>{_diffHighlightGenes.clear();_diffHighlightRenderTags();renderDiff();});
 }
 
+// --- Volcano: label significant genes with leader lines (force-directed layout) ---
+let _volcLabelActive=false,_volcLabelCache=null;
+function _volcLabelToggle(){
+  const chart=STATE.charts.diffVolcano;if(!chart)return;
+  _volcLabelActive=!_volcLabelActive;_volcLabelCache=null;chart.update('none');
+}
+function _volcLabelClear(){
+  _volcLabelActive=false;_volcLabelCache=null;
+  const chart=STATE.charts.diffVolcano;if(chart)chart.update('none');
+}
+function _volcComputeLabels(chart){
+  const{left,right,top,bottom}=chart.chartArea;
+  const pts=[];
+  chart.data.datasets.forEach((ds,di)=>{
+    if(!/\s(Up|Down)$/.test(ds.label||''))return;
+    const meta=chart.getDatasetMeta(di);if(meta.hidden)return;
+    const col=typeof ds.backgroundColor==='string'?ds.backgroundColor:'#888';
+    meta.data.forEach((pt,i)=>{
+      const d=ds.data[i];if(!d?.gene)return;
+      if(pt.x<left||pt.x>right||pt.y<top||pt.y>bottom)return;
+      pts.push({px:pt.x,py:pt.y,gene:d.gene,col});
+    });
+  });
+  if(!pts.length)return[];
+  const MAX=300;if(pts.length>MAX){pts.sort((a,b)=>a.py-b.py);pts.splice(MAX);}
+  const FS=9,PAD=3;
+  const mc=document.createElement('canvas').getContext('2d');
+  mc.font=`bold ${FS}px system-ui,sans-serif`;
+  const ccx=(left+right)/2,ccy=(top+bottom)/2;
+  const labels=pts.map(p=>{
+    const tw=mc.measureText(p.gene).width;
+    const ang=Math.atan2(p.py-ccy,p.px-ccx),R=24;
+    return{ox:p.px,oy:p.py,lx:p.px+Math.cos(ang)*R,ly:p.py+Math.sin(ang)*R,tw,th:FS+4,gene:p.gene,col:p.col};
+  });
+  const n=labels.length;
+  const ITERS=n<=50?160:n<=100?80:n<=200?40:20;
+  const SPRING=0.04,PT_R=14,PAD3=PAD*3;
+  for(let it=0;it<ITERS;it++){
+    for(let i=0;i<n;i++){
+      const a=labels[i];let fx=(a.ox-a.lx)*SPRING,fy=(a.oy-a.ly)*SPRING;
+      for(let j=0;j<n;j++){
+        if(i===j)continue;
+        const b=labels[j],dx=a.lx-b.lx,dy=a.ly-b.ly;
+        const sepX=(a.tw+b.tw)*0.5+PAD3,sepY=(a.th+b.th)*0.5+PAD;
+        const ovX=sepX-Math.abs(dx),ovY=sepY-Math.abs(dy);
+        if(ovX>0&&ovY>0){const push=(Math.min(ovX,ovY)+0.5)*0.5;if(Math.abs(dx)<Math.abs(dy))fx+=Math.sign(dx||1)*push;else fy+=Math.sign(dy||1)*push;}
+      }
+      for(let j=0;j<pts.length;j++){
+        const dx=a.lx-pts[j].px,dy=a.ly-pts[j].py,d=Math.sqrt(dx*dx+dy*dy)||0.01;
+        if(d<PT_R){fx+=dx/d*(PT_R-d)*0.5;fy+=dy/d*(PT_R-d)*0.5;}
+      }
+      a.lx+=fx;a.ly+=fy;
+      a.lx=Math.max(left+a.tw*0.5+PAD,Math.min(right-a.tw*0.5-PAD,a.lx));
+      a.ly=Math.max(top+a.th*0.5,Math.min(bottom-a.th*0.5,a.ly));
+    }
+  }
+  return labels;
+}
+function _volcSigLabelsPlugin(){
+  return{id:'volcanoSigLabels',afterDatasetsDraw(chart){
+    if(!_volcLabelActive)return;
+    const cw=chart.canvas.width,ch=chart.canvas.height;
+    if(!_volcLabelCache||_volcLabelCache.w!==cw||_volcLabelCache.h!==ch)
+      _volcLabelCache={w:cw,h:ch,pos:_volcComputeLabels(chart)};
+    const labels=_volcLabelCache.pos;if(!labels?.length)return;
+    const ctx=chart.ctx,FS=9,PAD=3;
+    ctx.save();
+    ctx.font=`bold ${FS}px system-ui,sans-serif`;
+    ctx.textBaseline='middle';ctx.textAlign='center';
+    // leader lines
+    labels.forEach(l=>{
+      const dx=l.lx-l.ox,dy=l.ly-l.oy,dist=Math.sqrt(dx*dx+dy*dy);
+      if(dist<4)return;
+      ctx.beginPath();ctx.strokeStyle=l.col;ctx.lineWidth=0.75;
+      ctx.moveTo(l.ox+dx/dist*4,l.oy+dy/dist*4);ctx.lineTo(l.lx,l.ly);ctx.stroke();
+    });
+    // text with white background
+    labels.forEach(l=>{
+      ctx.fillStyle='rgba(255,255,255,0.82)';
+      ctx.fillRect(l.lx-l.tw*0.5-PAD,l.ly-l.th*0.5,l.tw+PAD*2,l.th);
+      ctx.fillStyle=l.col;ctx.fillText(l.gene,l.lx,l.ly);
+    });
+    ctx.restore();
+  }};
+}
+
 function renderDiff(){
   const omics=$('diffOmics').value;
   const isCorrected=omics==='phospho-corrected';
@@ -1820,9 +1991,11 @@ function renderDiff(){
     else{cwarn.style.display='none';cwarn.innerHTML='';}
   }
   if(!f||!cmps.length){
-    $('diffStats').innerHTML='<p style="color:var(--muted);font-size:.85rem;">Select comparisons / load DEP file.</p>';
-    if(STATE.charts.diffVolcano){STATE.charts.diffVolcano.destroy();STATE.charts.diffVolcano=null;}
+    if(STATE.charts.diffVolcano){STATE.charts.diffVolcano.destroy();STATE.charts.diffVolcano=null;_volcLabelCache=null;}
     if(STATE.charts.diffCounts){STATE.charts.diffCounts.destroy();STATE.charts.diffCounts=null;}
+    // Reset to square height when nothing selected
+    {const _vw=$('diffVolcanoWrap');if(_vw){const _s=Math.max(_vw.offsetWidth,180);_vw.style.height=_s+'px';}}
+    {const _cw=$('diffCountsWrap');if(_cw){const _s=Math.max(_cw.offsetWidth,180);_cw.style.height=_s+'px';}}
     lastDiffRows=[];renderDiffTable();return;
   }
   const lfc=parseFloat($('thLogFC').value),pcut=parseFloat($('thP').value),pcol=$('thPtype').value;
@@ -1871,40 +2044,30 @@ function renderDiff(){
       pwarn.innerHTML=`Selected P-value column <b>${esc(pcol)}</b> not found (or all values invalid) in this DEP file. The volcano will show <b>no points</b>. Try the other option (<b>${esc(other)}</b>), or rename the column in your CSV.`;
     } else { pwarn.style.display='none'; pwarn.innerHTML=''; }
   }
-  // stats cards
-  const stats=$('diffStats');stats.innerHTML='';
-  cmps.forEach((c,i)=>{
-    const rs=data[c];const up=rs.filter(r=>r._sig&&r._dir==='up').length,dn=rs.filter(r=>r._sig&&r._dir==='down').length;
-    const d=document.createElement('div');d.className='stat-card';d.style.borderLeft=`4px solid ${COL_PALETTE[i%COL_PALETTE.length]}`;
-    d.innerHTML=`<div class="val"><span class="up">↑${up}</span> / <span class="dn">↓${dn}</span></div><div class="lbl">${c}</div>`;
-    stats.appendChild(d);
-  });
   // volcano (multi)
   const ctx=$('diffVolcano').getContext('2d');
-  if(STATE.charts.diffVolcano)STATE.charts.diffVolcano.destroy();
-  // Base colors: Up=red, Down=blue, P-only=orange, NS=gray.
-  // Each comparison group gets progressively lighter shades so groups are visually distinct.
-  const _BASE_UP='#c0392b',_BASE_DN='#1257a3',_BASE_PO='#e08e2a',_BASE_NS='#9aa3b2';
-  function _volLighten(hex,t){
-    const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);
-    return `rgba(${Math.round(r+(255-r)*t)},${Math.round(g+(255-g)*t)},${Math.round(b+(255-b)*t)},1)`;
-  }
+  if(STATE.charts.diffVolcano){STATE.charts.diffVolcano.destroy();_volcLabelCache=null;}
+  // Per-group distinct color palettes: Up=warm family, Down=cool family (12 hues, loops for >12 groups)
+  const _UP_PAL=['#c0392b','#e07820','#9b1c50','#c87000','#d43060','#8b2000','#d4a020','#a03090','#cf5030','#7a1430','#e04060','#b05010'];
+  const _DN_PAL=['#1a56a0','#0d7a6a','#5b2d8e','#0a608a','#1a6b4a','#3030a0','#117864','#6c3483','#1a4080','#006060','#2060b0','#4a1070'];
+  const _BASE_NS='#9aa3b2';
   function _volRgba(hex,t,a){
     const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);
     return `rgba(${Math.round(r+(255-r)*t)},${Math.round(g+(255-g)*t)},${Math.round(b+(255-b)*t)},${a})`;
   }
   const datasets=cmps.map((c,ci)=>{
-    const t=Math.min(ci*0.33,0.66); // lighten 0% / 33% / 66% for group 0/1/2+
+    const upC=_UP_PAL[ci%_UP_PAL.length];
+    const dnC=_DN_PAL[ci%_DN_PAL.length];
     const rows=data[c].filter(r=>Number.isFinite(r._lfc)&&Number.isFinite(r._p));
     const up    =rows.filter(r=>r._p<=pcut && r._lfc>= lfc).map(r=>({x:r._lfc,y:-log10(r._p),gene:r._gene||r._id}));
     const dn    =rows.filter(r=>r._p<=pcut && r._lfc<=-lfc).map(r=>({x:r._lfc,y:-log10(r._p),gene:r._gene||r._id}));
     const ponly =rows.filter(r=>r._p<=pcut && Math.abs(r._lfc)<lfc).map(r=>({x:r._lfc,y:-log10(r._p),gene:r._gene||r._id}));
     const ns    =rows.filter(r=>r._p>pcut).map(r=>({x:r._lfc,y:-log10(r._p),gene:r._gene||r._id}));
     return [
-      {label:c+' Up',    data:up,    backgroundColor:_volLighten(_BASE_UP,t), pointRadius:3,  pointHoverRadius:5},
-      {label:c+' Down',  data:dn,    backgroundColor:_volLighten(_BASE_DN,t), pointRadius:3,  pointHoverRadius:5},
-      {label:c+' P only',data:ponly, backgroundColor:_volLighten(_BASE_PO,t), pointRadius:2.4,pointHoverRadius:5},
-      {label:c+' ns',    data:ns,    backgroundColor:_volRgba(_BASE_NS,t,0.4), pointRadius:1.6,pointHoverRadius:4}
+      {label:c+' Up',    data:up,    backgroundColor:upC,                      pointRadius:3,  pointHoverRadius:5},
+      {label:c+' Down',  data:dn,    backgroundColor:dnC,                      pointRadius:3,  pointHoverRadius:5},
+      {label:c+' P only',data:ponly, backgroundColor:'rgba(90,90,90,0.5)',      pointRadius:2.4,pointHoverRadius:5},
+      {label:c+' ns',    data:ns,    backgroundColor:_volRgba(_BASE_NS,0,0.35),pointRadius:1.6,pointHoverRadius:4}
     ];
   }).flat();
   // Highlighted genes overlay (rendered on top)
@@ -1914,50 +2077,37 @@ function renderDiff(){
       .map(r=>({x:r._lfc,y:-log10(r._p),gene:r._gene||r._id}));
     if(hlPts.length)datasets.push({label:'Highlighted',data:hlPts,backgroundColor:'#f39c12',borderColor:'#fff',borderWidth:1.5,pointRadius:7,pointHoverRadius:9,_highlight:true});
   }
-  // axis bounds: X symmetric, Y with 10% padding
+  // axis bounds: X symmetric, Y with 10% padding (avoid spread to handle large arrays)
   const allPts=datasets.flatMap(d=>d.data);
   let xMin=0,xMax=0,yMin=0,yMax=0;
   if(allPts.length){
-    const xs=allPts.map(p=>p.x), ys=allPts.map(p=>p.y);
-    const xAbsMax=Math.max(Math.abs(Math.min(...xs)),Math.abs(Math.max(...xs)));
-    const xPad=xAbsMax*0.10||0.5;
-    xMin=-(xAbsMax+xPad); xMax=xAbsMax+xPad;
-    yMin=Math.min(...ys); yMax=Math.max(...ys);
+    let _xAbsMax=0,_yMin=Infinity,_yMax=-Infinity;
+    for(const p of allPts){const ax=Math.abs(p.x);if(ax>_xAbsMax)_xAbsMax=ax;if(p.y<_yMin)_yMin=p.y;if(p.y>_yMax)_yMax=p.y;}
+    const xPad=_xAbsMax*0.10||0.5;
+    xMin=-(_xAbsMax+xPad); xMax=_xAbsMax+xPad;
+    yMin=_yMin; yMax=_yMax;
     const yr=(yMax-yMin)||1;
-    yMin=Math.min(yMin,0)-yr*0.02; yMax+=yr*0.10;
+    yMin=Math.min(yMin,0)-yr*0.02; yMax+=yr*0.20;
   }
+  // Accurate pre-size: measureText on legend labels → correct canvas height in one shot
+  {const _w=$('diffVolcanoWrap');if(_w&&_w.offsetWidth>0){const wW=_w.offsetWidth;const LEFT=65,RIGHT=10,TOP=18,BOT_AXIS=44;const plotW=Math.max(80,wW-LEFT-RIGHT);const _mc=document.createElement('canvas').getContext('2d');_mc.font='12px Helvetica,Arial,sans-serif';const vis=datasets.filter(d=>!d._highlight);let rW=0,rows=1;vis.forEach(d=>{const iW=24+Math.ceil(_mc.measureText(d.label||'').width);if(rW+iW>wW-20&&rW>0){rows++;rW=iW;}else rW+=iW;});const legH=rows*20+8;_w.style.height=Math.max(260,Math.round(0.8*plotW)+TOP+BOT_AXIS+legH)+'px';}}
   STATE.charts.diffVolcano=new Chart(ctx,{type:'scatter',data:{datasets},options:{
-    responsive:true,plugins:{legend:{position:'bottom',labels:{boxWidth:10}},
-    tooltip:{callbacks:{label:c=>`${c.raw.gene}  (${isCorrected?'Corrected ':''  }Log2FC:${fmt(c.raw.x,3)}, -log10 P:${fmt(c.raw.y,3)})`}}},  
+    animation:false,responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{boxWidth:10}},
+    tooltip:{callbacks:{label:c=>`${c.raw.gene}  (${isCorrected?'Corrected ':''}Log2FC:${fmt(c.raw.x,3)}, -log10 P:${fmt(c.raw.y,3)})`}}},  
     scales:{
       x:{title:{display:true,text:isCorrected?'Corrected Log2FC (phospho − protein)':'Log2 fold change'},min:xMin,max:xMax},
       y:{title:{display:true,text:'−log10 '+({'adj.P.Val':'p.adj','P.Value':'p-val'}[pcol]||pcol)},min:yMin,max:yMax}
     }
-  },plugins:[volcanoThresholdPlugin(lfc,pcut,pcol),{
-    id:'volcanoLabels',
-    afterDatasetsDraw(chart){
-      const hlIdx=chart.data.datasets.findIndex(d=>d._highlight);
-      if(hlIdx<0)return;
-      const meta=chart.getDatasetMeta(hlIdx);
-      if(meta.hidden)return;
-      const ctx=chart.ctx;ctx.save();
-      ctx.font='bold 11px system-ui,sans-serif';
-      meta.data.forEach((pt,i)=>{
-        const label=chart.data.datasets[hlIdx].data[i]?.gene||'';if(!label)return;
-        ctx.strokeStyle='rgba(255,255,255,0.9)';ctx.lineWidth=3;ctx.lineJoin='round';
-        ctx.strokeText(label,pt.x+8,pt.y-5);
-        ctx.fillStyle='#b85500';ctx.fillText(label,pt.x+8,pt.y-5);
-      });
-      ctx.restore();
-    }
-  }]});
+  },plugins:[volcanoThresholdPlugin(lfc,pcut,pcol),_volcSigLabelsPlugin(),{id:'volcanoLabels',afterDatasetsDraw(chart){const hlIdx=chart.data.datasets.findIndex(d=>d._highlight);if(hlIdx<0)return;const meta=chart.getDatasetMeta(hlIdx);if(meta.hidden)return;const ctx=chart.ctx;ctx.save();ctx.font='bold 11px system-ui,sans-serif';meta.data.forEach((pt,i)=>{const label=chart.data.datasets[hlIdx].data[i]?.gene||'';if(!label)return;ctx.strokeStyle='rgba(255,255,255,0.9)';ctx.lineWidth=3;ctx.lineJoin='round';ctx.strokeText(label,pt.x+8,pt.y-5);ctx.fillStyle='#b85500';ctx.fillText(label,pt.x+8,pt.y-5);});ctx.restore();}},{id:'volcanoAutoHeight',afterRender(chart){const ca=chart.chartArea;if(!ca)return;const plotW=ca.right-ca.left;if(plotW<=0)return;const plotH=Math.max(ca.bottom-ca.top,1);const target=Math.ceil(chart.height+(0.8*plotW-plotH));const wrap=$('diffVolcanoWrap');if(!wrap||target<=0||target>4000)return;if(Math.abs(parseInt(wrap.style.height||'0')-target)<=2)return;if(wrap._rafPending)return;wrap._rafPending=true;requestAnimationFrame(()=>{wrap._rafPending=false;wrap.style.height=target+'px';chart.resize();requestAnimationFrame(()=>{const ca2=chart.chartArea,cw=$('diffCountsWrap');if(ca2&&cw){const vph=Math.round(ca2.bottom-ca2.top),UM=65,MIN=18;cw.style.height=Math.max(vph+UM,cmps.length*MIN+UM)+'px';}STATE.charts.diffCounts?.resize();});});}}]});
   // up/down counts — per-comparison bars use the same lightened shades as the volcano
-  const cctx=$('diffCounts').getContext('2d');
   if(STATE.charts.diffCounts)STATE.charts.diffCounts.destroy();
+  // Set Up/Down canvas height: plot area matches volcano plot area, or grows if bars need min height
+  {const _vw=$('diffVolcanoWrap'),_cw=$('diffCountsWrap');if(_vw&&_cw){const _vpH=Math.max(100,Math.round(0.8*((_vw.offsetWidth||400)-75)));const _MIN=18,_UM=65;_cw.style.height=Math.max(_vpH+_UM,cmps.length*_MIN+_UM)+'px';}}
+  const cctx=$('diffCounts').getContext('2d');
   STATE.charts.diffCounts=new Chart(cctx,{type:'bar',data:{labels:cmps,datasets:[
-    {label:'Up',  data:cmps.map((c,ci)=>data[c].filter(r=>r._sig&&r._dir==='up').length),  backgroundColor:cmps.map((_,ci)=>_volLighten(_BASE_UP,Math.min(ci*0.33,0.66)))},
-    {label:'Down',data:cmps.map((c,ci)=>data[c].filter(r=>r._sig&&r._dir==='down').length),backgroundColor:cmps.map((_,ci)=>_volLighten(_BASE_DN,Math.min(ci*0.33,0.66)))}
-  ]},options:{indexAxis:'y',responsive:true,plugins:{legend:{position:'bottom'}}}});
+    {label:'Up',  data:cmps.map((c,ci)=>data[c].filter(r=>r._sig&&r._dir==='up').length),  backgroundColor:cmps.map((_,ci)=>_UP_PAL[ci%_UP_PAL.length])},
+    {label:'Down',data:cmps.map((c,ci)=>data[c].filter(r=>r._sig&&r._dir==='down').length),backgroundColor:cmps.map((_,ci)=>_DN_PAL[ci%_DN_PAL.length])}
+  ]},options:{indexAxis:'y',animation:false,responsive:true,maintainAspectRatio:false,layout:{padding:{right:40}},plugins:{legend:{position:'bottom'}}},plugins:[{id:'barLabels',afterDatasetsDraw(c){const ctx=c.ctx;ctx.save();ctx.font='11px system-ui,sans-serif';ctx.textBaseline='middle';c.data.datasets.forEach((ds,di)=>{const meta=c.getDatasetMeta(di);if(meta.hidden)return;meta.data.forEach((bar,i)=>{const v=ds.data[i];if(!v)return;ctx.fillStyle='#444';ctx.textAlign='left';ctx.fillText(v,bar.x+4,bar.y);});});ctx.restore();}}]});
   // table
   lastDiffRows=allRows.filter(r=>r._sig).sort((a,b)=>Math.abs(b._lfc)-Math.abs(a._lfc));
   renderDiffTable();
@@ -1971,9 +2121,10 @@ function renderDiffTable(){
   const hdr=cols.map(c=>`<th>${labelOf(c)}</th>`).join('');
   tbl.querySelector('thead').innerHTML=`<tr>${hdr}</tr>`;
   const tb=tbl.querySelector('tbody');tb.innerHTML='';
+  const _pCols=new Set(['_p','adj.P.Val','P.Value']);
   rows.slice(0,500).forEach(r=>{
     const tr=document.createElement('tr');
-    tr.innerHTML=cols.map(c=>{let v=r[c];if(typeof v==='number')v=fmt(v,4);return `<td>${esc(v??'')}</td>`;}).join('');
+    tr.innerHTML=cols.map(c=>{let v=r[c];if(typeof v==='number')v=_pCols.has(c)?fmtP(v):fmt(v,4);return `<td>${esc(v??'')}</td>`;}).join('');
     tb.appendChild(tr);
   });
   // Truncation notice (placed right after the table wrap)
@@ -2081,7 +2232,10 @@ function renderHm(){
   const allV=M.flat().filter(Number.isFinite);
   const vmax=Math.max(Math.abs(quantile(allV,0.02)),Math.abs(quantile(allV,0.98)))||1;
   const out=$('hmOut');out.innerHTML='';
-  const grid=document.createElement('div');grid.className='hm-grid';grid.style.gridTemplateColumns=`auto repeat(${samples.length},minmax(28px,1fr))`;
+  const grid=document.createElement('div');grid.className='hm-grid';
+  const _hmHdrH=Math.max(50,Math.min(160,samples.reduce((m,s)=>Math.max(m,s.length),0)*8+12));
+  grid.style.gridTemplateColumns=`auto repeat(${samples.length},minmax(28px,1fr))`;
+  grid.style.gridTemplateRows=`${_hmHdrH}px`;
   grid.appendChild(Object.assign(document.createElement('div'),{className:'hm-rowlbl',textContent:''}));
   samples.forEach(s=>{const c=document.createElement('div');c.className='hm-collbl';c.textContent=s;grid.appendChild(c);});
   for(let i=0;i<M.length;i++){
@@ -2105,7 +2259,7 @@ function renderHm(){
 ['gseaP','gseaTopN'].forEach(id=>{const e=$(id);if(e)e.addEventListener('input',renderGsea);});
 {const e=$('gseaSearch');if(e)e.addEventListener('input',renderGsea);}
 ['bubbleSortKey','bubbleSortOrder'].forEach(id=>{const e=$(id);if(e)e.addEventListener('change',renderGsea);});
-$('gseaCompWrap').addEventListener('change',e=>{if(e.target.matches('input[type="checkbox"]'))renderGsea();});
+$('gseaCompWrap').addEventListener('change',e=>{if(e.target.matches('input[type="checkbox"]')){if(e.target.dataset.all){$('gseaCompPanel')?.querySelectorAll('input:not([data-all])').forEach(i=>i.checked=e.target.checked);}  _updateGseaCompBtn();renderGsea();}});
 $('gseaExport').addEventListener('click',exportGseaCsv);
 document.querySelectorAll('.subtab[data-gtab]').forEach(t=>t.addEventListener('click',()=>{document.querySelectorAll('.subtab[data-gtab]').forEach(x=>x.classList.remove('active'));t.classList.add('active');document.querySelectorAll('.gtab-pane').forEach(p=>p.style.display='none');$('gtab-'+t.dataset.gtab).style.display='block';renderGsea();}));
 document.querySelectorAll('.subtab[data-gsrc]').forEach(t=>t.addEventListener('click',()=>{document.querySelectorAll('.subtab[data-gsrc]').forEach(x=>x.classList.remove('active'));t.classList.add('active');$('gsrc-run').style.display=t.dataset.gsrc==='run'?'block':'none';if(t.dataset.gsrc==='run')refreshGseaRunControls();}));
@@ -2383,7 +2537,7 @@ async function runGseaFromDep(){
 }
 
 function exportGseaCsv(){
-  const keys=[...document.querySelectorAll('#gseaCompWrap input:checked')].map(i=>i.value);
+  const keys=[...document.querySelectorAll('#gseaCompWrap input:checked')].filter(i=>!i.dataset.all).map(i=>i.value);
   if(!keys.length)return;
   const rows=[];
   keys.forEach(k=>{
@@ -2491,6 +2645,7 @@ function renderGseaBar(allByComp,topN){
       if(Number.isFinite(nes)){
         const pct=Math.abs(nes)/nesMax*50;
         const fill=document.createElement('div');
+        fill.dataset.nesBar='1';
         fill.style.cssText=nes>=0
           ?`position:absolute;left:50%;width:${pct}%;top:1px;bottom:1px;background:${clr};border-radius:0 2px 2px 0;opacity:.85;`
           :`position:absolute;right:50%;width:${pct}%;top:1px;bottom:1px;background:${clr};border-radius:2px 0 0 2px;opacity:.85;`;
@@ -2529,20 +2684,21 @@ function renderGseaHm(allByComp,topN){
   const Padj=ids.map(id=>cmps.map(c=>{const m=allByComp[c].find(r=>r._id===id);return m?m._p:NaN;}));
   const allV=M.flat().filter(Number.isFinite);if(!allV.length){div.innerHTML='<p style="color:var(--muted);">No values.</p>';return;}
   const vmax=Math.max(Math.abs(quantile(allV,0.05)),Math.abs(quantile(allV,0.95)))||1;
-  // lblW: raw length for pathways that fit within 560px cap; balanced half-length for those that don't
+  // lblW: same logic as NES bar — full length if fits within 600px, else balanced half-length
   const _effLenHm=ids.reduce((m,id)=>{
-    if(id.length*8.5<=560)return Math.max(m,id.length);
+    if(id.length*8.5<=600)return Math.max(m,id.length);
     const pts=id.split('_');if(pts.length<=1)return Math.max(m,id.length);
     let best=id.length,left=0;
     for(let i=0;i<pts.length-1;i++){left+=pts[i].length+1;best=Math.min(best,Math.max(left,id.length-left));}
     return Math.max(m,best);
   },0);
-  const lblW=Math.min(560,Math.max(180,Math.ceil(_effLenHm*8.5)));
+  const lblW=Math.min(600,Math.max(160,Math.ceil(_effLenHm*8.5)));
   const rowPx=26;
   const cellW=Math.max(80,Math.min(160,Math.floor(360/Math.max(1,cmps.length))));
-  const maxCmpLen=cmps.reduce((m,s)=>Math.max(m,s.length),0);
-  const estHdrLines=Math.max(2,Math.ceil(maxCmpLen*6.5/cellW));
-  const headerH=Math.min(100,Math.max(44,estHdrLines*18+10));
+  const maxRestLen=cmps.reduce((m,s)=>Math.max(m,s.replace(/^\[[^\]]+\]\s*/,'').length),0);
+  const _hasTag=cmps.some(s=>/^\[/.test(s));
+  const estHdrLines=Math.max(2,(_hasTag?1:0)+Math.max(1,Math.ceil(maxRestLen*6.5/cellW)));
+  const headerH=Math.min(160,Math.max(56,estHdrLines*18+12));
   div.style.height='';
   div.style.overflow='visible';
   div.style.position='relative';
@@ -2560,7 +2716,7 @@ function renderGseaHm(allByComp,topN){
   cmps.forEach(s=>{
     const c=document.createElement('div');c.className='hm-collbl';
     // horizontal wrapping, [Pro]/[Phos] tag on first line
-    c.style.cssText='writing-mode:horizontal-tb;transform:none;white-space:normal;word-break:break-word;overflow-wrap:anywhere;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;padding:4px 2px;font-size:.72rem;box-sizing:border-box;';
+    c.style.cssText=`writing-mode:horizontal-tb;transform:none;white-space:normal;word-break:break-word;overflow-wrap:anywhere;text-align:center;display:flex;flex-direction:column;align-items:stretch;justify-content:center;padding:4px 2px;font-size:.72rem;box-sizing:border-box;overflow:hidden;height:${headerH}px;`;
     const mt=s.match(/^(\[[^\]]+\])\s*(.*)/);
     if(mt){
       const tag=document.createElement('span');tag.textContent=mt[1];tag.style.cssText='display:block;white-space:nowrap;font-weight:700;';
@@ -2584,12 +2740,12 @@ function renderGseaHm(allByComp,topN){
       grid.appendChild(cell);
     }
   }
-  div.appendChild(grid);
-  // NES color scale legend — absolute top-left (within label-column header area)
+  // NES color scale legend — fixed width = lblW, centered above the pathway label column
   const _hmLg=document.createElement('div');
-  _hmLg.style.cssText='position:absolute;top:6px;left:6px;display:flex;align-items:center;gap:8px;font-size:.68rem;background:rgba(255,255,255,0.92);border-radius:5px;padding:3px 8px;pointer-events:none;';
-  _hmLg.innerHTML=`<span style="color:#555;font-weight:600;">NES:</span><span style="color:rgb(26,79,134);font-weight:700;">${(-vmax).toFixed(1)}</span><div style="width:90px;height:10px;background:linear-gradient(to right,rgb(26,79,134),#ffffff,rgb(192,57,43));border:1px solid #ccc;border-radius:2px;"></div><span style="color:rgb(192,57,43);font-weight:700;">+${vmax.toFixed(1)}</span>`;
+  _hmLg.style.cssText=`display:flex;align-items:center;justify-content:center;width:${lblW}px;gap:6px;font-size:.65rem;margin-bottom:4px;padding:2px 0;`;
+  _hmLg.innerHTML=`<span style="color:#555;font-weight:600;">NES:</span><span style="color:rgb(26,79,134);font-weight:700;">${(-vmax).toFixed(1)}</span><div style="width:80px;height:9px;background:linear-gradient(to right,rgb(26,79,134),#ffffff,rgb(192,57,43));border:1px solid #ccc;border-radius:2px;"></div><span style="color:rgb(192,57,43);font-weight:700;">+${vmax.toFixed(1)}</span>`;
   div.appendChild(_hmLg);
+  div.appendChild(grid);
 }
 function renderGseaBubble(allByComp,topN){
   const wrap=$('gseaBubbleWrap');wrap.innerHTML='';
@@ -2639,14 +2795,15 @@ function renderGseaBubble(allByComp,topN){
   const plotW=Math.round(Math.max(360, 280 + Math.min(360, globalMaxLbl*4)) * 0.6);
   const labelColW=Math.min(380, Math.max(180, globalMaxLbl*6+24));
   const canvasW=labelColW+plotW+R_MAX+12;
-  cmps.forEach(c=>{
+  cmps.forEach((c,ci)=>{
     const top=perComp[c];if(!top||!top.length)return;
     const labels=top.map(r=>r._id);
     const rowH=24;
     const h=Math.max(360, Math.round(top.length * rowH) + 90);
     const box=document.createElement('div');box.className='chart-box';
     box.style.cssText='flex:0 0 auto;box-sizing:border-box;margin:0 auto 18px;padding:14px 18px;';
-    box.innerHTML=`<h3 style="margin:0 0 8px;font-size:.99rem;">${esc(c)}</h3>`;
+    box.innerHTML=`<h3 style="margin:0 0 8px;font-size:.99rem;"><button class="btn-sm dl-btn" title="Download PNG">↓</button>${esc(c)}</h3>`;
+    const _bubDlBtn=box.querySelector('.dl-btn');
     // chart + DOM legend side-by-side
     const row=document.createElement('div');
     row.style.cssText='display:flex;gap:18px;align-items:flex-start;';
@@ -2709,6 +2866,7 @@ function renderGseaBubble(allByComp,topN){
         elements:{point:{backgroundColor:c=>c.raw.backgroundColor,borderColor:c=>c.raw.borderColor,borderWidth:1}}
       }});
     STATE.charts._bubble.push(ch);
+    if(_bubDlBtn)_bubDlBtn.onclick=()=>_screenshotEl(box,null,(c||'bubble').replace(/[\s\/]/g,'_'));
   });
   wrap.style.flexDirection='column';
   wrap.style.alignItems='center';
@@ -2722,7 +2880,7 @@ function renderGseaList(allByComp,topN){
     const h=document.createElement('div');h.innerHTML=`<h3>${esc(c)} · ${top.length} pathways</h3>`;
     top.forEach(r=>{const card=document.createElement('div');card.className='gsea-card';
       card.innerHTML=`<div class="name">${esc(r._id)}</div>
-        <div class="meta">NES <b>${fmt(r._nes,3)}</b> · p.adj <b>${fmt(r._p,3)}</b> · size <b>${esc(r._size)}</b> · ${esc(r.leading_edge||'')}</div>
+        <div class="meta">NES <b>${fmt(r._nes,3)}</b> · p.adj <b>${fmtP(r._p)}</b> · size <b>${esc(r._size)}</b> · ${esc(r.leading_edge||'')}</div>
         <div class="leading">${esc((r.core_enrichment||'').replace(/\//g,' · '))}</div>`;
       h.appendChild(card);});
     div.appendChild(h);
@@ -2768,6 +2926,229 @@ function renderCross(){
  * INIT
  * ===========================================================*/
 drawFileList();
+
+/* --- Chart download utility --- */
+function _dlChart(canvasIdOrEl,name,titleStyle){
+  const c=typeof canvasIdOrEl==='string'?$(canvasIdOrEl):canvasIdOrEl;if(!c)return;
+  const S=8,_isH3=titleStyle==='h3';
+  // Fallback title helper — used only for non-Chart.js canvases (S=8 path)
+  const _drawTitle=(cx,TH)=>{
+    if(_isH3){
+      const fs=Math.round(TH*0.59),x=Math.round(TH*0.33);
+      cx.fillStyle='#6b7488';cx.font=`600 ${fs}px Arial,sans-serif`;
+      if('letterSpacing' in cx)cx.letterSpacing=Math.round(fs*0.05)+'px';
+      cx.textAlign='left';cx.textBaseline='middle';
+      cx.fillText((name||'').replace(/_/g,' '),x,TH/2);
+      if('letterSpacing' in cx)cx.letterSpacing='0px';
+    }else{
+      const _fSz=Math.max(Math.round(TH*0.38),Math.min(Math.round(TH*0.57),Math.round(TH/14)));
+      cx.fillStyle='#333';cx.font=`bold ${_fSz}px Arial,sans-serif`;cx.textAlign='left';cx.textBaseline='middle';
+      cx.fillText((name||'').replace(/_/g,' '),Math.round(TH*0.33),TH/2);
+    }
+  };
+  const TH=_isH3?Math.round(24.4*S):14*S;
+  const ch=typeof Chart!=='undefined'&&Chart.getChart?Chart.getChart(c):null;
+  if(ch){
+    // Bypass ch.resize() entirely — Chart.js 4.x's ke() (retinaScale) can be
+    // synchronously reset by afterRender plugins (e.g. volcanoAutoHeight) before
+    // _export() runs, leaving the canvas at natural DPR.  Instead we directly set
+    // canvas dimensions + context transform, call ch.draw(), then restore.
+    // SHI=4 → output is exactly 4× CSS pixels for every Chart.js chart.
+    const SHI=4;
+    const _rDPR=ch.currentDevicePixelRatio||1;
+    const _rW=Math.floor(ch.width*_rDPR),_rH=Math.floor(ch.height*_rDPR);
+    const _fSz=Math.round(18*SHI);
+    const TITLE_H=Math.max(Math.round(_fSz*1.8),40);
+    const _export=()=>{
+      const tmp=document.createElement('canvas');tmp.width=c.width;tmp.height=c.height+TITLE_H;
+      const cx=tmp.getContext('2d');cx.fillStyle='#fff';cx.fillRect(0,0,tmp.width,tmp.height);
+      cx.fillStyle=_isH3?'#6b7488':'#444';
+      cx.font=(_isH3?`600 ${_fSz}px`:`bold ${_fSz}px`)+' Arial,sans-serif';
+      if(_isH3&&'letterSpacing' in cx)cx.letterSpacing=Math.round(_fSz*0.05)+'px';
+      cx.textAlign='left';cx.textBaseline='middle';
+      cx.fillText((name||''),Math.round(TITLE_H*0.35),TITLE_H/2);
+      if('letterSpacing' in cx)cx.letterSpacing='0px';
+      cx.drawImage(c,0,TITLE_H);
+      const a=document.createElement('a');a.download=(name||'chart').replace(/\s+/g,'_').replace(/[^\w-]/g,'').slice(0,60)+'.png';a.href=tmp.toDataURL('image/png');a.click();
+    };
+    try{
+      c.width=Math.floor(ch.width*SHI);c.height=Math.floor(ch.height*SHI);
+      ch.ctx.setTransform(SHI,0,0,SHI,0,0);ch.currentDevicePixelRatio=SHI;
+      ch.draw();_export();
+    }finally{
+      c.width=_rW;c.height=_rH;
+      ch.ctx.setTransform(_rDPR,0,0,_rDPR,0,0);ch.currentDevicePixelRatio=_rDPR;
+      ch.draw();
+    }
+  }else{
+    const cssW=parseFloat(c.style.width)||c.offsetWidth||c.width,cssH=parseFloat(c.style.height)||c.offsetHeight||c.height;
+    const tmp=document.createElement('canvas');tmp.width=cssW*S;tmp.height=cssH*S+TH;
+    const cx=tmp.getContext('2d');cx.fillStyle='#fff';cx.fillRect(0,0,tmp.width,tmp.height);
+    _drawTitle(cx,TH);cx.drawImage(c,0,TH,cssW*S,cssH*S);
+    const a=document.createElement('a');a.download=(name||'chart').replace(/\s+/g,'_').replace(/[^\w-]/g,'').slice(0,60)+'.png';a.href=tmp.toDataURL('image/png');a.click();
+  }
+}
+function _downloadCorr(){
+  const grid=document.querySelector('#qcCorr .hm-grid');if(!grid)return;
+  const cells=[...grid.querySelectorAll('.hm-cell')];
+  const colHdrs=[...grid.querySelectorAll('.hm-collbl')];
+  const rowLbls=[...grid.querySelectorAll('.hm-rowlbl')].slice(1);
+  const n=colHdrs.length;if(!n)return;
+  const CS=44,LW=94,LH=72,TH=40,GAP=5;
+  const logW=LW+n*CS+10,logH=LH+GAP+n*CS+24;
+  // Dynamic scale: keep canvas area < 200M pixels (Chrome limit ~268M)
+  let S=8;while(S>1&&logW*S*(logH+TH)*S>200000000)S--;
+  const cvs=document.createElement('canvas');cvs.width=logW*S;cvs.height=(logH+TH)*S;
+  const cx=cvs.getContext('2d');cx.scale(S,S);cx.fillStyle='#fff';cx.fillRect(0,0,logW,logH+TH);
+  cx.fillStyle='#6b7488';cx.font='600 18px Arial,sans-serif';
+  if('letterSpacing' in cx)cx.letterSpacing='0.9px';
+  cx.textAlign='left';cx.textBaseline='middle';
+  cx.fillText('Sample correlation (Pearson)',Math.round(TH*0.35),TH/2);
+  if('letterSpacing' in cx)cx.letterSpacing='0px';
+  colHdrs.forEach((c,j)=>{cx.save();cx.translate(LW+j*CS+CS/2,TH+LH);cx.rotate(-Math.PI/3);cx.fillStyle='#333';cx.font='9px Arial,sans-serif';cx.textAlign='left';cx.textBaseline='middle';cx.fillText(c.textContent,0,0);cx.restore();});
+  for(let i=0;i<n;i++){
+    cx.fillStyle='#333';cx.textAlign='right';cx.textBaseline='middle';cx.font='9px Arial,sans-serif';
+    cx.fillText(rowLbls[i]?.textContent||'',LW-4,TH+LH+GAP+i*CS+CS/2);
+    for(let j=0;j<n;j++){
+      const cell=cells[i*n+j];if(!cell)continue;
+      cx.fillStyle=cell.style.background||'#eee';cx.fillRect(LW+j*CS,TH+LH+GAP+i*CS,CS,CS);
+      cx.strokeStyle='rgba(255,255,255,0.6)';cx.lineWidth=0.5;cx.strokeRect(LW+j*CS,TH+LH+GAP+i*CS,CS,CS);
+      if(cell.textContent){cx.fillStyle='#111';cx.font='8px Arial';cx.textAlign='center';cx.textBaseline='middle';cx.fillText(cell.textContent,LW+j*CS+CS/2,TH+LH+GAP+i*CS+CS/2);}
+    }
+  }
+  const a=document.createElement('a');a.download='Sample_correlation.png';a.href=cvs.toDataURL('image/png');a.click();
+}
+// Screenshot DOM element exactly as displayed (uses html2canvas)
+function _screenshotEl(el,titleText,filename){
+  if(!el)return;
+  if(typeof html2canvas==='undefined'){alert('html2canvas not loaded');return;}
+  const S=6; // scale 6 ≈ 576 dpi
+  const dlBtns=[...el.querySelectorAll('.dl-btn')];
+  dlBtns.forEach(b=>b.style.visibility='hidden');
+  // Pre-render Chart.js canvases at 4x so html2canvas captures sharp content
+  const SHI=4;
+  const restoreList=[];
+  el.querySelectorAll('canvas').forEach(cv=>{
+    const ch=typeof Chart!=='undefined'&&Chart.getChart?Chart.getChart(cv):null;
+    if(!ch)return;
+    const rDPR=ch.currentDevicePixelRatio||1;
+    const rW=Math.floor(ch.width*rDPR),rH=Math.floor(ch.height*rDPR);
+    restoreList.push({cv,ch,rW,rH,rDPR});
+    try{cv.width=Math.floor(ch.width*SHI);cv.height=Math.floor(ch.height*SHI);
+      ch.ctx.setTransform(SHI,0,0,SHI,0,0);ch.currentDevicePixelRatio=SHI;ch.draw();}catch(e){}
+  });
+  const _restore=()=>{
+    restoreList.forEach(({cv,ch,rW,rH,rDPR})=>{
+      try{cv.width=rW;cv.height=rH;ch.ctx.setTransform(rDPR,0,0,rDPR,0,0);ch.currentDevicePixelRatio=rDPR;ch.draw();}catch(e){}
+    });
+  };
+  // Use actual rendered dimensions — no ancestor modification to avoid layout shift
+  const rect=el.getBoundingClientRect();
+  const W=Math.round(rect.width),H=Math.round(rect.height);
+  // Pass full document dimensions so html2canvas renders off-screen content too
+  const winW=Math.max(document.documentElement.scrollWidth,rect.right+window.scrollX);
+  const winH=Math.max(document.documentElement.scrollHeight,rect.bottom+window.scrollY);
+  html2canvas(el,{scale:S,backgroundColor:'#ffffff',logging:false,useCORS:true,
+    width:W,height:H,windowWidth:winW,windowHeight:winH}).then(cvs=>{
+    _restore();dlBtns.forEach(b=>b.style.visibility='');
+    let out=cvs;
+    if(titleText){
+      const TH=14*S;const tmp=document.createElement('canvas');tmp.width=cvs.width;tmp.height=cvs.height+TH;
+      const cx=tmp.getContext('2d');cx.fillStyle='#fff';cx.fillRect(0,0,tmp.width,tmp.height);
+      const _fSz=Math.max(3*S,Math.min(8*S,Math.round(cvs.height/25)));
+      cx.fillStyle='#333';cx.font=`bold ${_fSz}px Arial,sans-serif`;cx.textAlign='left';cx.textBaseline='middle';
+      cx.fillText(titleText,8*S,TH/2);cx.drawImage(cvs,0,TH);out=tmp;
+    }
+    const a=document.createElement('a');a.download=(filename||'image')+'.png';a.href=out.toDataURL('image/png');a.click();
+  }).catch(()=>{
+    _restore();dlBtns.forEach(b=>b.style.visibility='');
+  });
+}
+function _downloadDomHm(gridSelector,filename){
+  const grid=document.querySelector(gridSelector);if(!grid)return;
+  const colHdrs=[...grid.querySelectorAll('.hm-collbl')];
+  const rowLblsAll=[...grid.querySelectorAll('.hm-rowlbl')];
+  const allCells=[...grid.querySelectorAll('.hm-cell')];
+  const nC=colHdrs.length;if(!nC||!allCells.length)return;
+  const nR=Math.round(allCells.length/nC);
+  const rowLbls=rowLblsAll.slice(1);
+  // Parse actual layout from grid template CSS (set explicitly by renderGseaHm)
+  const colPx=(grid.style.gridTemplateColumns||'').match(/[\d.]+px/g)?.map(parseFloat)||[];
+  const rowPxArr=(grid.style.gridTemplateRows||'').match(/[\d.]+px/g)?.map(parseFloat)||[];
+  let LW=colPx[0]||0,CW=colPx[1]||0,LH=rowPxArr[0]||0,CH=rowPxArr[1]||0;
+  // Fall back to getBoundingClientRect (works when panel is visible)
+  if(!CW||!LW){
+    const cr=allCells[0]?.getBoundingClientRect(),lr=rowLbls[0]?.getBoundingClientRect(),hr=colHdrs[0]?.getBoundingClientRect();
+    if(cr?.width>0){CW=Math.round(cr.width);CH=Math.round(cr.height);}
+    if(lr?.width>0)LW=Math.round(lr.width);
+    if(hr?.height>0)LH=Math.round(hr.height);
+  }
+  // Final estimate fallback
+  const maxLL=rowLbls.reduce((m,el)=>Math.max(m,(el.innerText||el.textContent||'').split('\n')[0].length),0);
+  const maxHL=colHdrs.reduce((m,el)=>Math.max(m,(el.innerText||el.textContent||'').replace(/\n/g,' ').length),0);
+  LW=LW||Math.min(300,Math.max(60,Math.round(maxLL*6.5)));
+  CW=CW||Math.max(36,Math.min(130,Math.round(maxHL*6.5)));
+  CH=CH||22;CH=Math.min(CH,18);LH=LH||Math.max(40,Math.min(110,Math.round(maxHL*7+8)));
+  const fLbl=Math.max(7,Math.round(CH*0.48)),fCell=Math.max(6,Math.round(CH*0.4));
+  const S=8,GAP=5,W=LW+nC*CW+10,H=LH+GAP+nR*CH+24,TH=40;
+  const cvs=document.createElement('canvas');cvs.width=W*S;cvs.height=(H+TH)*S;
+  const cx=cvs.getContext('2d');cx.scale(S,S);cx.fillStyle='#fff';cx.fillRect(0,0,W,H+TH);
+  cx.fillStyle='#6b7488';cx.font='600 18px Arial,sans-serif';
+  if('letterSpacing' in cx)cx.letterSpacing='0.9px';
+  cx.textAlign='left';cx.textBaseline='middle';
+  cx.fillText(filename.replace(/_/g,' '),Math.round(TH*0.35),TH/2);
+  if('letterSpacing' in cx)cx.letterSpacing='0px';
+  cx.translate(0,TH);
+  colHdrs.forEach((el,j)=>{
+    const txt=(el.innerText||el.textContent||'').trim();
+    cx.save();
+    cx.translate(LW+j*CW+CW/2,LH);
+    cx.rotate(-Math.PI/2);
+    cx.fillStyle='#333';cx.font=`${fLbl}px Arial,sans-serif`;
+    cx.textAlign='left';cx.textBaseline='middle';
+    cx.fillText(txt,0,0);
+    cx.restore();
+  });
+  for(let i=0;i<nR;i++){
+    cx.fillStyle='#333';cx.textAlign='right';cx.textBaseline='middle';cx.font=`${fLbl}px Arial,sans-serif`;
+    cx.fillText((rowLbls[i]?.innerText||rowLbls[i]?.textContent||'').split('\n')[0].trim(),LW-4,LH+GAP+i*CH+CH/2);
+    for(let j=0;j<nC;j++){
+      const cell=allCells[i*nC+j];if(!cell)continue;
+      cx.fillStyle=cell.style.background||'#eee';cx.fillRect(LW+j*CW,LH+GAP+i*CH,CW,CH);
+      cx.strokeStyle='rgba(255,255,255,0.5)';cx.lineWidth=0.5;cx.strokeRect(LW+j*CW,LH+GAP+i*CH,CW,CH);
+      const txt=(cell.textContent||'').trim();
+      if(txt){cx.fillStyle='rgba(0,0,0,0.75)';cx.font=`${fCell}px Arial`;cx.textAlign='center';cx.textBaseline='middle';cx.fillText(txt,LW+j*CW+CW/2,LH+GAP+i*CH+CH/2);}
+    }
+  }
+  const a=document.createElement('a');a.download=(filename||'heatmap')+'.png';a.href=cvs.toDataURL('image/png');a.click();
+}
+function _downloadHm(){_downloadDomHm('#hmOut .hm-grid','Expression_heatmap');}
+function _downloadGseaBubble(){
+  const charts=(STATE.charts._bubble||[]).filter(c=>c.canvas);
+  if(!charts.length)return;
+  const canvases=charts.map(c=>c.canvas);
+  const S=8,gap=18,TH=22;
+  const W=(canvases.reduce((s,cv)=>s+cv.width,0)+gap*(canvases.length+1))*S;
+  const H=(Math.max(...canvases.map(cv=>cv.height))+gap*2+TH)*S;
+  const out=document.createElement('canvas');out.width=W;out.height=H;
+  const cx=out.getContext('2d');cx.fillStyle='#fff';cx.fillRect(0,0,W,H);
+  cx.scale(S,S);
+  cx.fillStyle='#333';cx.font='bold 11px Arial,sans-serif';cx.textAlign='left';cx.textBaseline='middle';
+  cx.fillText('GSEA Bubble Plot',gap,TH/2);
+  let x=gap;canvases.forEach(cv=>{cx.drawImage(cv,x,TH+gap,cv.width,cv.height);x+=cv.width+gap;});
+  const a=document.createElement('a');a.download='GSEA_bubble.png';a.href=out.toDataURL('image/png');a.click();
+}
+(function _initDlBtns(){
+  document.querySelectorAll('.chart-box').forEach(box=>{
+    if(box.querySelector('.dl-btn'))return;
+    const canvas=box.querySelector('canvas');if(!canvas||!canvas.id)return;
+    const h3=box.querySelector('h3');if(!h3)return;
+    const btn=document.createElement('button');btn.className='btn-sm dl-btn';btn.innerHTML='\u2193';btn.title='Download PNG';
+    const n=(h3.textContent||'').trim().replace(/\u2193/g,'').trim();
+    btn.onclick=()=>_dlChart(canvas.id,n,'h3');
+    h3.insertBefore(btn,h3.firstChild);
+  });
+})();
 </script>
 </body>
 </html>
